@@ -19,7 +19,8 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >= 4.6 && < 5,
-                       grid >= 7.6.7 && < 7.7
+                       grid >= 7.6.7 && < 7.7,
+                       containers >= 0.5.6.2 && < 0.6
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -32,6 +33,9 @@ Test-suite tests
   Build-depends:       halma,
                        grid,
                        HUnit,
+                       QuickCheck,
                        base,
+                       containers,
                        test-framework >= 0.6 && < 0.9,
-                       test-framework-hunit >= 0.3.0 && < 0.4
+                       test-framework-hunit >= 0.3.0 && < 0.4,
+                       test-framework-quickcheck2 >= 0.3.0 && < 0.4
