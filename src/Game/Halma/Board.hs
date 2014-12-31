@@ -1,18 +1,20 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
 
 module Game.Halma.Board
-  ( HalmaGrid (..)
-  , northCorner, southCorner
-  , northeastCorner, northwestCorner
-  , southeastCorner, southwestCorner
-  , corners
-  , Team (..)
-  , oppositeTeam
+  ( HalmaGridSize (..), HalmaGrid (..)
+  , sideLength, numFields
+  , HalmaDirection (..)
+  , oppositeDirection
+  , corner
+  , Team
   , startCorner, endCorner
   , startFields, endFields
   , twoPlayers, threePlayers
-  , HalmaBoard, toMap, fromMap
+  , HalmaBoard, getGrid, toMap, fromMap
   , lookupHalmaBoard
   , movePiece
   , initialBoard
@@ -21,135 +23,154 @@ module Game.Halma.Board
 import GHC.Generics (Generic)
 import Math.Geometry.Grid
 import Math.Geometry.Grid.Hexagonal
-import Math.Geometry.Grid.HexagonalInternal (HexDirection (..), UnboundedHexGrid (..))
+import qualified Math.Geometry.Grid.HexagonalInternal as HI
 import Math.Geometry.GridInternal
 import Data.Maybe (fromJust)
 import qualified Data.Map.Strict as M
 
-data HalmaGrid = HalmaGrid
-  deriving (Eq, Show, Read, Ord, Bounded, Generic)
+data HalmaGridSize = S | L
 
-corner :: (HexDirection, HexDirection) -> (Int, Int)
-corner d = iter4 (intoDirection d) center
-  where neighbour' dir = fromJust . flip (neighbour UnboundedHexGrid) dir
+data HalmaGrid :: HalmaGridSize -> * where
+  SmallGrid :: HalmaGrid 'S
+  LargeGrid :: HalmaGrid 'L
+
+instance Eq (HalmaGrid size) where
+  _ == _ = True
+
+instance Ord (HalmaGrid size) where
+  _ `compare` _ = EQ
+
+instance Show (HalmaGrid size) where
+  show SmallGrid = "SmallGrid"
+  show LargeGrid = "LargeGrid"
+
+sideLength :: HalmaGrid size -> Int
+sideLength SmallGrid = 5
+sideLength LargeGrid = 6
+
+numFields :: HalmaGrid size -> Int
+numFields SmallGrid = 121
+numFields LargeGrid = 181
+
+data HalmaDirection = North | Northeast | Southeast | South | Southwest | Northwest
+  deriving (Eq, Show, Read, Ord, Bounded, Enum, Generic)
+
+oppositeDirection :: HalmaDirection -> HalmaDirection
+oppositeDirection North = South
+oppositeDirection South = North
+oppositeDirection Northeast = Southwest
+oppositeDirection Southwest = Northeast
+oppositeDirection Northwest = Southeast
+oppositeDirection Southeast = Northwest
+
+corner :: HalmaGrid size -> HalmaDirection -> (Int, Int)
+corner halmaGrid direction = iter (sideLength halmaGrid - 1)
+                                  (intoDirection $ getDirs direction) center
+  where neighbour' dir = fromJust . flip (neighbour HI.UnboundedHexGrid) dir
         intoDirection (d1, d2) = neighbour' d1 . neighbour' d2
-        iter4 f = f . f . f . f
+        iter 0 _ = id
+        iter i f = iter (i-1) f . f
         center = (0, 0)
+        getDirs North = (HI.Northwest, HI.Northeast)
+        getDirs South = (HI.Southwest, HI.Southeast)
+        getDirs Northeast = (HI.Northeast, HI.East)
+        getDirs Northwest = (HI.Northwest, HI.West)
+        getDirs Southeast = (HI.Southeast, HI.East)
+        getDirs Southwest = (HI.Southwest, HI.West)
 
-northCorner, southCorner, northeastCorner, northwestCorner, southeastCorner, southwestCorner :: Index HalmaGrid
-northCorner = corner (Northwest, Northeast)
-southCorner = corner (Southwest, Southeast)
-northeastCorner = corner (Northeast, East)
-northwestCorner = corner (Northwest, West)
-southeastCorner = corner (Southeast, East)
-southwestCorner = corner (Southwest, West)
-
-corners :: [(Int, Int)]
-corners = 
-  [ northCorner, southCorner
-  , northeastCorner, northwestCorner
-  , southeastCorner, southwestCorner
-  ]
-
-instance Grid HalmaGrid where
-  type Index HalmaGrid = (Int, Int)
-  type Direction HalmaGrid = HexDirection
-  indices _ = filter (contains HalmaGrid) roughBoard
-    where roughBoard = indices (hexHexGrid 9)
-  neighbours = neighboursBasedOn UnboundedHexGrid
-  distance = distanceBasedOn UnboundedHexGrid
-  directionTo = directionToBasedOn UnboundedHexGrid
-  contains _ p =
-    distCenter <= 4 ||
-    (distCenter <= 8 && any ((==) (8 - distCenter) . dist p) corners)
-    where dist = distance UnboundedHexGrid
+instance Grid (HalmaGrid size) where
+  type Index (HalmaGrid size) = (Int, Int)
+  type Direction (HalmaGrid size) = HI.HexDirection
+  -- TODO: cache indices
+  indices halmaGrid = filter (contains halmaGrid) roughBoard
+    where sl = sideLength halmaGrid - 1
+          roughBoard = indices (hexHexGrid (2*sl + 1))
+  neighbours = neighboursBasedOn HI.UnboundedHexGrid
+  distance = distanceBasedOn HI.UnboundedHexGrid
+  directionTo = directionToBasedOn HI.UnboundedHexGrid
+  contains halmaGrid p =
+    distCenter <= sl ||
+    (distCenter <= (2*sl) && any ((==) (2*sl - distCenter) . dist p) corners)
+    where sl = sideLength halmaGrid - 1
+          dist = distance HI.UnboundedHexGrid
           distCenter = dist (0, 0) p
+          corners = map (corner halmaGrid) [minBound..maxBound]
 
-instance FiniteGrid HalmaGrid where
-  type Size HalmaGrid = ()
+instance FiniteGrid (HalmaGrid S) where
+  type Size (HalmaGrid S) = ()
   size _ = ()
   maxPossibleDistance _ = 16
 
-instance BoundedGrid HalmaGrid where
+instance FiniteGrid (HalmaGrid L) where
+  type Size (HalmaGrid L) = ()
+  size _ = ()
+  maxPossibleDistance _ = 20
+
+instance BoundedGrid (HalmaGrid size) where
   tileSideCount _ = 6
 
+type Team = HalmaDirection
 
-data Team = TeamNorth | TeamSouth
-          | TeamNortheast | TeamNorthwest
-          | TeamSoutheast | TeamSouthwest
-          deriving (Eq, Show, Read, Ord, Bounded, Enum, Generic)
+startCorner :: HalmaGrid size -> Team -> (Int, Int)
+startCorner = corner
 
-oppositeTeam :: Team -> Team
-oppositeTeam TeamNorth = TeamSouth
-oppositeTeam TeamSouth = TeamNorth
-oppositeTeam TeamNortheast = TeamSouthwest
-oppositeTeam TeamSouthwest = TeamNortheast
-oppositeTeam TeamNorthwest = TeamSoutheast
-oppositeTeam TeamSoutheast = TeamNorthwest
+endCorner :: HalmaGrid size -> Team -> (Int, Int)
+endCorner halmaGrid = corner halmaGrid . oppositeDirection
 
-startCorner :: Team -> (Int, Int)
-startCorner TeamNorth = northCorner
-startCorner TeamSouth = southCorner
-startCorner TeamNortheast = northeastCorner
-startCorner TeamNorthwest = northwestCorner
-startCorner TeamSoutheast = southeastCorner
-startCorner TeamSouthwest = southwestCorner
-
-endCorner :: Team -> (Int, Int)
-endCorner = startCorner . oppositeTeam
-
-startFields, endFields :: Team -> [(Int, Int)]
-startFields team = filter ((<= 4) . dist) (indices HalmaGrid)
-  where dist = distance HalmaGrid (startCorner team)
-endFields = startFields . oppositeTeam
+startFields, endFields :: HalmaGrid size -> Team -> [(Int, Int)]
+startFields halmaGrid team = filter ((<= 4) . dist) (indices halmaGrid)
+  where dist = distance halmaGrid (startCorner halmaGrid team)
+endFields halmaGrid = startFields halmaGrid . oppositeDirection
 
 twoPlayers :: Team -> Bool
-twoPlayers TeamNorth = True
-twoPlayers TeamSouth = True
+twoPlayers North = True
+twoPlayers South = True
 twoPlayers _ = False
 
 threePlayers :: Team -> Bool
-threePlayers TeamNorthwest = True
-threePlayers TeamNortheast = True
-threePlayers TeamSouth = True
+threePlayers Northwest = True
+threePlayers Northeast = True
+threePlayers South = True
 threePlayers _ = False
 
 
-newtype HalmaBoard = HalmaBoard { toMap :: M.Map (Index HalmaGrid) Team }
-  deriving (Eq)
+data HalmaBoard size =
+       HalmaBoard { getGrid :: HalmaGrid size
+                  , toMap :: M.Map (Int, Int) Team
+                  } deriving (Eq)
 
-instance Show HalmaBoard where
-  show (HalmaBoard m) = "fromMap (" ++ show m ++ ")"
+instance Show (HalmaBoard size) where
+  show (HalmaBoard halmaGrid m) = "fromMap " ++ show halmaGrid ++ " (" ++ show m ++ ")"
 
-lookupHalmaBoard :: (Int, Int) -> HalmaBoard -> Maybe Team
-lookupHalmaBoard p = M.lookup p . toMap
-
-fromMap :: M.Map (Index HalmaGrid) Team -> Maybe HalmaBoard
-fromMap m = if invariantsHold then Just (HalmaBoard m) else Nothing
+fromMap :: HalmaGrid size -> M.Map (Index (HalmaGrid size)) Team -> Maybe (HalmaBoard size)
+fromMap halmaGrid m = if invariantsHold then Just (HalmaBoard halmaGrid m) else Nothing
   where invariantsHold = indicesCorrect && rightTeamPieces
         list = M.toList m
-        indicesCorrect = all (contains HalmaGrid . fst) list
+        indicesCorrect = all (contains halmaGrid . fst) list
         rightTeamPieces = all rightNumberOfTeamPieces [minBound..maxBound]
         rightNumberOfTeamPieces team =
           length (filter ((== team) . snd) list) `elem` [0,15]
+
+lookupHalmaBoard :: (Int, Int) -> HalmaBoard size -> Maybe Team
+lookupHalmaBoard p = M.lookup p . toMap
 
 -- | Move a piece on the halma board. This function does not check whether the
 -- move is valid according to the Halma rules.
 movePiece
   :: (Int, Int) -- ^ start position
   -> (Int, Int) -- ^ end position
-  -> HalmaBoard
-  -> Either String HalmaBoard
-movePiece startPos endPos (HalmaBoard m) =
+  -> HalmaBoard size
+  -> Either String (HalmaBoard size)
+movePiece startPos endPos (HalmaBoard halmaGrid m) =
   case M.lookup startPos m of
     Nothing -> Left "cannot make move: start position is empty"
     Just team ->
       case M.lookup endPos m of
         Just team' -> Left $ "cannot make move: end position is occupied by team " ++ show team'
-        Nothing -> Right $ HalmaBoard $ M.insert endPos team $ M.delete startPos m
+        Nothing -> Right $ HalmaBoard halmaGrid $ M.insert endPos team $ M.delete startPos m
 
-initialBoard :: (Team -> Bool) -> HalmaBoard
-initialBoard chosenTeams = HalmaBoard (M.fromList lineUps)
+initialBoard :: HalmaGrid size -> (Team -> Bool) -> HalmaBoard size
+initialBoard halmaGrid chosenTeams = HalmaBoard halmaGrid (M.fromList lineUps)
   where lineUps = concatMap (\team -> if chosenTeams team then lineUp team else [])
                             [minBound..maxBound]
-        lineUp team = map (flip (,) team) (startFields team)
+        lineUp team = map (flip (,) team) (startFields halmaGrid team)
