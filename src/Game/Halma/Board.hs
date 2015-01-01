@@ -88,13 +88,14 @@ instance Grid (HalmaGrid size) where
   neighbours = neighboursBasedOn HI.UnboundedHexGrid
   distance = distanceBasedOn HI.UnboundedHexGrid
   directionTo = directionToBasedOn HI.UnboundedHexGrid
-  contains halmaGrid p =
-    distCenter <= sl ||
-    (distCenter <= (2*sl) && any ((==) (2*sl - distCenter) . dist p) corners)
-    where sl = sideLength halmaGrid - 1
-          dist = distance HI.UnboundedHexGrid
-          distCenter = dist (0, 0) p
-          corners = map (corner halmaGrid) [minBound..maxBound]
+  contains halmaGrid (x, y) = atLeastTwo (test x) (test y) (test z)
+    where z = x + y
+          test i = abs i <= sl
+          sl = sideLength halmaGrid - 1
+          atLeastTwo True True _ = True
+          atLeastTwo True False True = True
+          atLeastTwo False True True = True
+          atLeastTwo _ _ _ = False
 
 instance FiniteGrid (HalmaGrid S) where
   type Size (HalmaGrid S) = ()
