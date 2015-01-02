@@ -1,7 +1,7 @@
 language: haskell
 before_install:
   - cabal install cabal-install
-  - cabal install gtk2hs-buildtools
+  - cabal install happy alex gtk2hs-buildtools
 ghc:
   - 7.8
   - 7.6
