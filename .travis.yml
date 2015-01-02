@@ -1,4 +1,6 @@
 language: haskell
+before_install:
+  - cabal install gtk2hs-buildtools
 ghc:
   - 7.8
   - 7.6
