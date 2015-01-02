@@ -1,11 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Game.Halma.Board.Draw (defaultTeamColours, drawBoard) where
+module Game.Halma.Board.Draw
+  ( defaultTeamColours
+  , drawBoard', drawBoard
+  ) where
 
 import Game.Halma.Board
 import Math.Geometry.Grid
 import Diagrams.Prelude
-import qualified Data.Map.Strict as M
 
 defaultTeamColours :: Team -> Colour Double
 defaultTeamColours North = yellow
@@ -15,12 +17,12 @@ defaultTeamColours Northeast = orange
 defaultTeamColours Southwest = pink
 defaultTeamColours Southeast = blue
 
-drawBoard
+drawBoard'
   :: Renderable (Path R2) b
-  => HalmaBoard size
-  -> (Team -> Colour Double)
+  => HalmaGrid size
+  -> ((Int,Int) -> Diagram b R2)
   -> QDiagram b R2 (Option (Last (Int, Int)))
-drawBoard halmaBoard teamColors =
+drawBoard' grid drawField =
     targets `atop`
     (mconcat
       [ pieces # lw ultraThin
@@ -33,12 +35,21 @@ drawBoard halmaBoard teamColors =
         justLast = Option . Just . Last
         clickTarget = circle 0.4 # lw none
         targets = position $ map (\f -> (toCoord f, clickTarget # value (justLast f))) fields
-        grid = getGrid halmaBoard
         fields = indices grid
         circles r = position $ zip (map toCoord fields) $ repeat $ circle r
         gridLines =
           mconcat $ map (\(p, q) -> fromVertices [toCoord p, toCoord q]) $
           concatMap (\f -> map ((,) f) $ filter (>= f) (neighbours grid f)) fields
-        pieces = position $ map (\(p, t) -> (toCoord p, circle 0.25 # fc (teamColors t) # lc (darken 0.5 (teamColors t))))
-                          $ M.toList $ toMap halmaBoard
+        pieces = position $ map (\p -> (toCoord p, drawField p)) fields
+
+drawBoard
+  :: Renderable (Path R2) b
+  => HalmaBoard size
+  -> (Team -> Colour Double)
+  -> QDiagram b R2 (Option (Last (Int, Int)))
+drawBoard halmaBoard teamColors = drawBoard' (getGrid halmaBoard) drawField
+  where drawPiece t =
+          let c = teamColors t
+          in circle 0.25 # fc c # lc (darken 0.5 c)
+        drawField = maybe mempty drawPiece . flip lookupHalmaBoard halmaBoard
 

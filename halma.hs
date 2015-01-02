@@ -38,7 +38,7 @@ main = do
         liftIO $ resizedFigure >>= renderToGtk win
         return True
   _ <- canvas `on` sizeRequest $ return (Requisition 400 400)
-  set window [ containerBorderWidth := 10, containerChild := canvas ]
+  set window [ containerBorderWidth := 0, containerChild := canvas ]
   _ <- canvas `on` exposeEvent $ renderFigure
   _ <- onDestroy window mainQuit
   _ <- canvas `on` buttonPressEvent $ tryEvent $ do
