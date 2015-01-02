@@ -2,7 +2,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
---{-# LANGUAGE GADTs #-}
 
 module Game.Halma.Board.Tests (tests) where
 
@@ -15,11 +14,22 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Data.List (permutations, sortBy)
 import Data.Maybe (isJust, fromJust)
 import Data.Function (on)
+import Control.Monad (forM_)
 import qualified Data.Map.Strict as M
 
 import Math.Geometry.Grid
 import qualified Math.Geometry.Grid.HexagonalInternal as HI
 import Game.Halma.Board
+
+testRowsInDirection :: Assertion
+testRowsInDirection =
+  forM_ [minBound..maxBound] $ \halmaDir -> do
+    let fieldsAtRow i = filter ((== i) . rowsInDirection halmaDir) (indices SmallGrid)
+        expected = let xs = [0,1,2,3,4,13,12,11,10] in xs ++ [9] ++ reverse xs
+    expected @=? map (length . fieldsAtRow) [-9..9]
+    print halmaDir
+    8    @=? rowsInDirection halmaDir (corner SmallGrid halmaDir)
+    (-8) @=? rowsInDirection halmaDir (corner SmallGrid (oppositeDirection halmaDir))
 
 -- | Cutoff equality comparison
 (@=?*) :: (Eq a, Show a) => [a] -> [a] -> Assertion
@@ -111,7 +121,8 @@ prop_moveNumbersInvariant halmaBoard = do
 
 tests :: Test
 tests = testGroup "Game.Halma.Board.Tests"
-  [ testCase "testDistancesFromCenter" testDistancesFromCenter
+  [ testCase "testRowsInDirection" testRowsInDirection
+  , testCase "testDistancesFromCenter" testDistancesFromCenter
   , testCase "testBoundaryLength" testBoundaryLength
   , testCase "testDirectionTo" testDirectionTo
   , testCase "testInitialBoard" testInitialBoard

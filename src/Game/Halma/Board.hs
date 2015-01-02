@@ -9,6 +9,7 @@ module Game.Halma.Board
   , sideLength, numFields
   , HalmaDirection (..)
   , oppositeDirection
+  , rowsInDirection
   , corner
   , Team
   , startCorner, endCorner
@@ -63,25 +64,38 @@ oppositeDirection Southwest = Northeast
 oppositeDirection Northwest = Southeast
 oppositeDirection Southeast = Northwest
 
+getDirs :: HalmaDirection -> (HI.HexDirection, HI.HexDirection)
+getDirs North = (HI.Northwest, HI.Northeast)
+getDirs South = (HI.Southwest, HI.Southeast)
+getDirs Northeast = (HI.Northeast, HI.East)
+getDirs Northwest = (HI.Northwest, HI.West)
+getDirs Southeast = (HI.Southeast, HI.East)
+getDirs Southwest = (HI.Southwest, HI.West)
+
+neighbour' :: HI.HexDirection -> (Int, Int) -> (Int, Int)
+neighbour' dir = fromJust . flip (neighbour HI.UnboundedHexGrid) dir
+
+rowsInDirection :: HalmaDirection -> (Int, Int) -> Int
+rowsInDirection dir = cramerPlus (neighbour' dir1 (0,0)) (neighbour' dir2 (0,0))
+  where (dir1, dir2) = getDirs dir
+        cramerPlus (a,b) (c,d) (x,y) =
+          -- Precondition: det(M) = 1/det(M), i.e. det(M) `elem` [-1,1]
+          -- where M is the matrix with column vectors (a,b) and (c,d).
+          let det = a*d - b*c
+          in det * (x*(d-b) + y*(a-c))
+        
+
 corner :: HalmaGrid size -> HalmaDirection -> (Int, Int)
 corner halmaGrid direction = iter (sideLength halmaGrid - 1)
                                   (intoDirection $ getDirs direction) center
-  where neighbour' dir = fromJust . flip (neighbour HI.UnboundedHexGrid) dir
-        intoDirection (d1, d2) = neighbour' d1 . neighbour' d2
+  where intoDirection (d1, d2) = neighbour' d1 . neighbour' d2
         iter 0 _ = id
         iter i f = iter (i-1) f . f
         center = (0, 0)
-        getDirs North = (HI.Northwest, HI.Northeast)
-        getDirs South = (HI.Southwest, HI.Southeast)
-        getDirs Northeast = (HI.Northeast, HI.East)
-        getDirs Northwest = (HI.Northwest, HI.West)
-        getDirs Southeast = (HI.Southeast, HI.East)
-        getDirs Southwest = (HI.Southwest, HI.West)
 
 instance Grid (HalmaGrid size) where
   type Index (HalmaGrid size) = (Int, Int)
   type Direction (HalmaGrid size) = HI.HexDirection
-  -- TODO: cache indices
   indices halmaGrid = filter (contains halmaGrid) roughBoard
     where sl = sideLength halmaGrid - 1
           roughBoard = indices (hexHexGrid (2*sl + 1))
