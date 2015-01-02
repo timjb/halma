@@ -19,17 +19,23 @@ drawBoard
   :: Renderable (Path R2) b
   => HalmaBoard size
   -> (Team -> Colour Double)
-  -> Diagram b R2
+  -> QDiagram b R2 (Option (Last (Int, Int)))
 drawBoard halmaBoard teamColors =
-           (pieces # lw ultraThin)
-    `atop` (circles # fc gray # lw none)
-    `atop` (gridLines # lc gray # lw thin)
+    targets `atop`
+    (mconcat
+      [ pieces # lw ultraThin
+      , circles 0.15 # fc gray # lw none
+      , gridLines # lc gray # lw thin
+      ] # value (Option Nothing))
   where dirX = unitX
         dirY = rotateBy (1/6) unitX
         toCoord (x, y) = p2 $ unr2 $ fromIntegral x *^ dirX ^+^ fromIntegral y *^ dirY
+        justLast = Option . Just . Last
+        clickTarget = circle 0.4 # lw none
+        targets = position $ map (\f -> (toCoord f, clickTarget # value (justLast f))) fields
         grid = getGrid halmaBoard
         fields = indices grid
-        circles = position $ zip (map toCoord fields) $ repeat $ circle 0.15
+        circles r = position $ zip (map toCoord fields) $ repeat $ circle r
         gridLines =
           mconcat $ map (\(p, q) -> fromVertices [toCoord p, toCoord q]) $
           concatMap (\f -> map ((,) f) $ filter (>= f) (neighbours grid f)) fields
