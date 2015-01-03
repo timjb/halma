@@ -18,6 +18,7 @@ import Control.Concurrent.Async (async, wait)
 import qualified Data.Function as F
 import Control.Concurrent.MVar
 import GHC.Conc (getNumCapabilities, setNumCapabilities)
+import System.TimeIt
 
 
 sizedCentered :: (Transformable a, Enveloped a, V a ~ R2) => SizeSpec2D -> a -> a
@@ -89,7 +90,8 @@ renderViewState teamColors (ViewState board startPos highlighted) = drawBoard' (
           drawPiece t # opacity 0.5
         _ -> mempty
 
-data ViewEvent = FieldClick (Int, Int)
+data ViewEvent = Quit
+               | FieldClick (Int, Int)
                | EmptyClick
                deriving (Eq, Show)
 
@@ -99,7 +101,11 @@ external = managed $ \f -> do
   _ <- initGUI
   window <- windowNew
   canvas <- drawingAreaNew
+  set window [ containerBorderWidth := 0, containerChild := canvas ]
+
   viewState <- newEmptyMVar
+  (veOutput, veInput) <- spawn Single
+
   let figure =
         fmap (maybe mempty (pad 1.05 . renderViewState defaultTeamColours))
              (tryReadMVar viewState)
@@ -107,32 +113,31 @@ external = managed $ \f -> do
         drawWin <- widgetGetDrawWindow canvas
         sizedCentered <$> (uncurry (Dims `F.on` fromIntegral) <$> drawableGetSize drawWin)
                       <*> (toGtkCoords <$> figure)
-      renderFigure = do
+      renderFigure = tryEvent $ do
         win <- eventWindow
-        liftIO $ resizedFigure >>= renderToGtk win
-        return True
+        liftIO $ putStr "Render time: "
+        liftIO $ timeIt $ resizedFigure >>= renderToGtk win
       updateViewState vs = do
         _ <- tryTakeMVar viewState
-        --putStrLn $ "updateViewState: " ++ show vs
         putMVar viewState vs
-        widgetQueueDraw window -- send redraw request to canvas
-        widgetQueueDraw window -- send redraw request to canvas
-  (veOutput, veInput) <- spawn Single
+        widgetQueueDraw canvas -- send redraw request to canvas
+      handleClick = tryEvent $ do
+        _click <- eventClick
+        (x,y) <- eventCoordinates
+        fig <- liftIO resizedFigure
+        let result = runQuery (query fig) (P (r2 (x, y)))
+            event = maybe EmptyClick (FieldClick . getLast) $ getOption result
+        liftIO $ print event
+        void $ liftIO $ atomically $ send veOutput event
+      handleDestroy = do
+        _ <- atomically $ send veOutput Quit
+        mainQuit
+
   _ <- canvas `on` sizeRequest $ return (Requisition 450 450)
-  set window [ containerBorderWidth := 0, containerChild := canvas ]
   _ <- canvas `on` exposeEvent $ renderFigure
-  _ <- onDestroy window mainQuit
-  _ <- canvas `on` buttonPressEvent $ tryEvent $ do
-    _click <- eventClick
-    (x,y) <- eventCoordinates
-    fig <- liftIO resizedFigure
-    let result = runQuery (query fig) (P (r2 (x, y)))
-        event =
-          case getOption result of
-            Nothing -> EmptyClick
-            Just (Last p) -> FieldClick p
-    liftIO $ print event
-    void $ liftIO $ atomically $ send veOutput event
+  _ <- canvas `on` buttonPressEvent $ handleClick
+  _ <- window `onDestroy` handleDestroy
+
   res <- async $ f (asSink updateViewState, asInput veInput)
   widgetShowAll window
   mainGUI
@@ -146,6 +151,7 @@ pipe = do
         yield $ ViewState board Nothing []
         event <- await
         case event of
+          Quit -> return ()
           EmptyClick -> noSelectionLoop
           FieldClick p | lookupHalmaBoard p board == Just team ->
             selectionLoop p
@@ -155,6 +161,7 @@ pipe = do
         yield $ ViewState board (Just startPos) possible
         event <- await
         case event of
+          Quit -> return ()
           EmptyClick -> noSelectionLoop
           FieldClick p | p `elem` possible -> do
             let Right board' = movePiece startPos p board
