@@ -1,7 +1,5 @@
 module Game.Halma.Rules
   ( RuleOptions (..)
-  , possibleStepMoves
-  , possibleJumpMoves
   , possibleMoves
   , hasFinished
   ) where
@@ -16,7 +14,7 @@ import Control.Monad (guard)
 import qualified Data.Set as S
 
 data RuleOptions =
-  RuleOptions { backwardsMovesAllowed :: Bool
+  RuleOptions { backwardsMovesAllowed :: Bool -- ^ May pieces be moved towards the start corner of the team?
               } deriving (Show, Eq)
 
 instance Default RuleOptions where
@@ -74,6 +72,7 @@ possibleJumpMoves ruleOptions halmaBoard startPos =
           then go set ps
           else go (S.insert p set) (jumpTargets p ++ ps)
 
+-- | Computes all possible moves for a piece.
 possibleMoves
   :: RuleOptions
   -> HalmaBoard size
@@ -83,6 +82,7 @@ possibleMoves ruleOptions halmaBoard startPos =
   possibleStepMoves ruleOptions halmaBoard startPos ++
   possibleJumpMoves ruleOptions halmaBoard startPos
 
+-- | Has a team all of it's pieces in the end zone?
 hasFinished :: HalmaBoard size -> Team -> Bool
 hasFinished halmaBoard team =
   all ((==) (Just team) . flip lookupHalmaBoard halmaBoard)

@@ -17,6 +17,8 @@ defaultTeamColours Northeast = orange
 defaultTeamColours Southwest = pink
 defaultTeamColours Southeast = blue
 
+-- | Render the board using the helper function for drawing the fields.
+-- Supports querying for field positions.
 drawBoard'
   :: Renderable (Path R2) b
   => HalmaGrid size
@@ -42,6 +44,8 @@ drawBoard' grid drawField =
           concatMap (\f -> map ((,) f) $ filter (>= f) (neighbours grid f)) fields
         pieces = position $ map (\p -> (toCoord p, drawField p)) fields
 
+-- | Render the board using the given team colors. Supports querying for field
+-- positions.
 drawBoard
   :: Renderable (Path R2) b
   => HalmaBoard size

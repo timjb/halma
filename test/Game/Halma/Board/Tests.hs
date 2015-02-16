@@ -27,7 +27,6 @@ testRowsInDirection =
     let fieldsAtRow i = filter ((== i) . rowsInDirection halmaDir) (indices SmallGrid)
         expected = let xs = [0,1,2,3,4,13,12,11,10] in xs ++ [9] ++ reverse xs
     expected @=? map (length . fieldsAtRow) [-9..9]
-    print halmaDir
     8    @=? rowsInDirection halmaDir (corner SmallGrid halmaDir)
     (-8) @=? rowsInDirection halmaDir (corner SmallGrid (oppositeDirection halmaDir))
 
@@ -63,7 +62,7 @@ assertOneOf actual validResults = assertBool msg (actual `elem` validResults)
   where msg = "Expected '" ++ show actual ++ "' to be one of '" ++ show validResults ++ "'"
 
 numbersCorrect :: HalmaGrid size -> [Maybe Team] -> Bool
-numbersCorrect halmaGrid = go 15 15 (numFields halmaGrid - 2*15)
+numbersCorrect halmaGrid = go 15 15 (numberOfFields halmaGrid - 2*15)
   where go :: Int -> Int -> Int -> [Maybe Team] -> Bool
         go 0 0 0 [] = True
         go !n !s !e (Just North : rs) = go (n-1) s e rs
@@ -73,8 +72,13 @@ numbersCorrect halmaGrid = go 15 15 (numFields halmaGrid - 2*15)
 
 testInitialBoard :: Assertion
 testInitialBoard = ass SmallGrid >> ass LargeGrid
-  where ass hg = assertBool "Expected 15 pieces of team north and south" $ numbersCorrect hg (pieces hg)
-        pieces hg = map (\p -> lookupHalmaBoard p (initialBoard hg twoPlayers)) (indices hg)
+  where
+    ass hg = assertBool "Expected 15 pieces of team north and south" $ numbersCorrect hg (pieces hg)
+    pieces hg = map (\p -> lookupHalmaBoard p (initialBoard hg twoPlayers)) (indices hg)
+    twoPlayers :: Team -> Bool
+    twoPlayers North = True
+    twoPlayers South = True
+    twoPlayers _ = False
 
 arbitraryPerm :: [a] -> Gen [a]
 arbitraryPerm xs =

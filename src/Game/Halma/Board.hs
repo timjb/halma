@@ -6,7 +6,7 @@
 
 module Game.Halma.Board
   ( HalmaGridSize (..), HalmaGrid (..)
-  , sideLength, numFields
+  , sideLength, numberOfFields
   , HalmaDirection (..)
   , oppositeDirection
   , rowsInDirection
@@ -14,7 +14,6 @@ module Game.Halma.Board
   , Team
   , startCorner, endCorner
   , startFields, endFields
-  , twoPlayers, threePlayers
   , HalmaBoard, getGrid, toMap, fromMap
   , lookupHalmaBoard
   , movePiece
@@ -45,14 +44,18 @@ instance Show (HalmaGrid size) where
   show SmallGrid = "SmallGrid"
   show LargeGrid = "LargeGrid"
 
+-- | Numbers of fields on each straight edge of a star-shaped halma board of the
+-- given size.
 sideLength :: HalmaGrid size -> Int
 sideLength SmallGrid = 5
 sideLength LargeGrid = 6
 
-numFields :: HalmaGrid size -> Int
-numFields SmallGrid = 121
-numFields LargeGrid = 181
+-- | Total number of fields on a halma board of the given size.
+numberOfFields :: HalmaGrid size -> Int
+numberOfFields SmallGrid = 121
+numberOfFields LargeGrid = 181
 
+-- | The six corners of a star-shaped halma board.
 data HalmaDirection = North | Northeast | Southeast | South | Southwest | Northwest
   deriving (Eq, Show, Read, Ord, Bounded, Enum, Generic)
 
@@ -75,6 +78,9 @@ getDirs Southwest = (HI.Southwest, HI.West)
 neighbour' :: HI.HexDirection -> (Int, Int) -> (Int, Int)
 neighbour' dir = fromJust . flip (neighbour HI.UnboundedHexGrid) dir
 
+-- | From the point of view of the given corner: On which row lies the given
+-- field? The row through the center is row zero, rows nearer to the corner have
+-- positive, rows nearer to the opposite corner negative numbers.
 rowsInDirection :: HalmaDirection -> (Int, Int) -> Int
 rowsInDirection dir = cramerPlus (neighbour' dir1 (0,0)) (neighbour' dir2 (0,0))
   where (dir1, dir2) = getDirs dir
@@ -86,13 +92,13 @@ rowsInDirection dir = cramerPlus (neighbour' dir1 (0,0)) (neighbour' dir2 (0,0))
           in det * (x*(d-b) + y*(a-c))
         
 
+-- | The corner corresponding to a direction on a star-shaped board of the
+-- given size.
 corner :: HalmaGrid size -> HalmaDirection -> (Int, Int)
-corner halmaGrid direction = iter (sideLength halmaGrid - 1)
-                                  (intoDirection $ getDirs direction) center
-  where intoDirection (d1, d2) = neighbour' d1 . neighbour' d2
-        iter 0 _ = id
-        iter i f = iter (i-1) f . f
-        center = (0, 0)
+corner halmaGrid direction = (sl*x, sl*y)
+  where (d1, d2) = getDirs direction
+        sl = sideLength halmaGrid - 1
+        (x, y) = neighbour' d1 $ neighbour' d2 (0, 0)
 
 instance Grid (HalmaGrid size) where
   type Index (HalmaGrid size) = (Int, Int)
@@ -125,31 +131,27 @@ instance FiniteGrid (HalmaGrid L) where
 instance BoundedGrid (HalmaGrid size) where
   tileSideCount _ = 6
 
+-- | The corner where the team starts.
 type Team = HalmaDirection
 
+-- | The position of the corner field where a team starts.
 startCorner :: HalmaGrid size -> Team -> (Int, Int)
 startCorner = corner
 
+-- | The position of the end zone corner of a team.
 endCorner :: HalmaGrid size -> Team -> (Int, Int)
 endCorner halmaGrid = corner halmaGrid . oppositeDirection
 
-startFields, endFields :: HalmaGrid size -> Team -> [(Int, Int)]
+-- | The start positions of a team's pieces.
+startFields :: HalmaGrid size -> Team -> [(Int, Int)]
 startFields halmaGrid team = filter ((<= 4) . dist) (indices halmaGrid)
   where dist = distance halmaGrid (startCorner halmaGrid team)
+
+-- | The end zone of the given team.
+endFields :: HalmaGrid size -> Team -> [(Int, Int)]
 endFields halmaGrid = startFields halmaGrid . oppositeDirection
 
-twoPlayers :: Team -> Bool
-twoPlayers North = True
-twoPlayers South = True
-twoPlayers _ = False
-
-threePlayers :: Team -> Bool
-threePlayers Northwest = True
-threePlayers Northeast = True
-threePlayers South = True
-threePlayers _ = False
-
-
+-- | Map from board positions to the team occupying that position.
 data HalmaBoard size =
        HalmaBoard { getGrid :: HalmaGrid size
                   , toMap :: M.Map (Int, Int) Team
@@ -158,6 +160,7 @@ data HalmaBoard size =
 instance Show (HalmaBoard size) where
   show (HalmaBoard halmaGrid m) = "fromMap " ++ show halmaGrid ++ " (" ++ show m ++ ")"
 
+-- | Construct halma boards. Satisfies @fromMap (getGrid board) (toMap board) = Just board@.
 fromMap :: HalmaGrid size -> M.Map (Index (HalmaGrid size)) Team -> Maybe (HalmaBoard size)
 fromMap halmaGrid m = if invariantsHold then Just (HalmaBoard halmaGrid m) else Nothing
   where invariantsHold = indicesCorrect && rightTeamPieces
@@ -167,6 +170,7 @@ fromMap halmaGrid m = if invariantsHold then Just (HalmaBoard halmaGrid m) else 
         rightNumberOfTeamPieces team =
           length (filter ((== team) . snd) list) `elem` [0,15]
 
+-- | Lookup whether a position on the board is occupied, and 
 lookupHalmaBoard :: (Int, Int) -> HalmaBoard size -> Maybe Team
 lookupHalmaBoard p = M.lookup p . toMap
 
