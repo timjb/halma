@@ -3,6 +3,7 @@ module Game.Halma.Rules
   , possibleStepMoves
   , possibleJumpMoves
   , possibleMoves
+  , hasFinished
   ) where
 
 import Math.Geometry.Grid
@@ -81,3 +82,8 @@ possibleMoves
 possibleMoves ruleOptions halmaBoard startPos =
   possibleStepMoves ruleOptions halmaBoard startPos ++
   possibleJumpMoves ruleOptions halmaBoard startPos
+
+hasFinished :: HalmaBoard size -> Team -> Bool
+hasFinished halmaBoard team =
+  all ((==) (Just team) . flip lookupHalmaBoard halmaBoard)
+      (endFields (getGrid halmaBoard) team)

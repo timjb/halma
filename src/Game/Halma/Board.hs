@@ -79,8 +79,9 @@ rowsInDirection :: HalmaDirection -> (Int, Int) -> Int
 rowsInDirection dir = cramerPlus (neighbour' dir1 (0,0)) (neighbour' dir2 (0,0))
   where (dir1, dir2) = getDirs dir
         cramerPlus (a,b) (c,d) (x,y) =
-          -- Precondition: det(M) = 1/det(M), i.e. det(M) `elem` [-1,1]
+          -- Computes (e+f) where (e,f) is the solution of M*(e,f) = (x,y)
           -- where M is the matrix with column vectors (a,b) and (c,d).
+          -- Precondition: det(M) = 1/det(M), i.e. det(M) `elem` [-1,1].
           let det = a*d - b*c
           in det * (x*(d-b) + y*(a-c))
         
