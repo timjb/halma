@@ -1,5 +1,7 @@
 language: haskell
 before_install:
+  - wget http://www.stackage.org/lts/cabal.config
+  - cabal update
   - cabal install cabal-install
   - cabal install happy alex gtk2hs-buildtools
 ghc:
