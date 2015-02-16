@@ -1,16 +1,15 @@
 name:                halma
 version:             0.1.0.0
 synopsis:            Library implementing Halma rules
--- description:         
+description:         Rules and `diagrams`-based renderer for the board game Halma on a hexagonal grid.
 homepage:            https://github.com/timjb/halma
 license:             MIT
 license-file:        LICENSE
 author:              Tim Baumann
 maintainer:          tim@timbaumann.info
--- copyright:           
+copyright:           2014-2015 Tim Baumann
 category:            Game
 build-type:          Simple
--- extra-source-files:  
 cabal-version:       >= 1.10
 
 library
@@ -18,10 +17,8 @@ library
   exposed-modules:     Game.Halma.Board,
                        Game.Halma.Rules,
                        Game.Halma.Board.Draw
-  -- other-modules:       
-  -- other-extensions:    
   build-depends:       base >= 4.6 && < 5,
-                       grid >= 7.6.7 && < 7.7,
+                       grid >= 7.6.7 && < 7.8,
                        containers >= 0.5 && < 0.6,
                        diagrams-lib >= 1.2.0.7 && < 1.3,
                        data-default >= 0.4 && < 0.6
@@ -52,6 +49,7 @@ Executable halma
                        gtk >= 0.13.4 && < 0.14,
                        mtl,
                        diagrams-lib,
+                       diagrams-cairo,
                        pipes >= 4.1.4 && < 4.2,
                        mvc >= 1.0.3 && < 1.1,
                        vector-space-points,
