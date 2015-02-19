@@ -1,5 +1,5 @@
 name:                halma
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Library implementing Halma rules
 description:         Rules and `diagrams`-based renderer for the board game Halma on a hexagonal grid.
 homepage:            https://github.com/timjb/halma
