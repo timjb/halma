@@ -5,6 +5,8 @@ before_install:
   - wget $STACKAGE 
   - cabal install happy alex gtk2hs-buildtools
 matrix:
+  allow_failures:
+    - ghc: "7.6"
   include:
     - ghc: "7.8"
       env: STACKAGE=http://www.stackage.org/lts/cabal.config
