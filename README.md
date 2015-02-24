@@ -3,6 +3,18 @@
 ![Halma Game][game-image]
 ![Halma Menu][menu-image]
 
+## Installation
+
+```bash
+$ cabal install halma
+```
+
+If cabal fails to solve the version constraints, try using [Stackage](http://www.stackage.org/).
+
+## Documentation
+
+See the docs on [Hackage][hackage-url].
+
 [travis-image]: https://img.shields.io/travis/timjb/halma.svg
 [travis-url]: http://travis-ci.org/timjb/halma
 [hackage-image]: https://img.shields.io/hackage/v/halma.svg?style=flat
@@ -12,11 +24,3 @@
 
 [game-image]: https://cdn.rawgit.com/timjb/halma/master/images/halma-game.png
 [menu-image]: https://cdn.rawgit.com/timjb/halma/master/images/halma-menu.png
-
-## Installation
-
-```bash
-$ cabal install halma
-```
-
-If cabal fails to solve the version constraints, try using [Stackage](http://www.stackage.org/).
