@@ -12,3 +12,11 @@
 
 [game-image]: https://cdn.rawgit.com/timjb/halma/master/images/halma-game.png
 [menu-image]: https://cdn.rawgit.com/timjb/halma/master/images/halma-menu.png
+
+## Installation
+
+```bash
+$ cabal install halma
+```
+
+If cabal fails to solve the version constraints, try using [Stackage](http://www.stackage.org/).
