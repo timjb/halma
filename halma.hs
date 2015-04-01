@@ -8,6 +8,7 @@ module Main (main) where
 
 import Game.Halma.Board
 import Game.Halma.Rules
+import Game.Halma.AI
 import Data.Default
 import Game.Halma.Board.Draw
 import Graphics.UI.Gtk hiding (get)
@@ -74,6 +75,7 @@ data HalmaState size =
   { hsRuleOptions :: RuleOptions
   , hsBoard :: HalmaBoard size
   , hsTurnCounter :: TurnCounter Team
+  , hsLastMoved :: Maybe (Int, Int)
   } deriving (Eq, Show)
 
 data NumberOfPlayers :: HalmaGridSize -> * where
@@ -119,6 +121,7 @@ newGame (State ms@(MenuState halmaGrid nop) _) = State ms (Just halmaState)
       HalmaState { hsRuleOptions = def
                  , hsBoard = initialBoard halmaGrid (flip elem players)
                  , hsTurnCounter = newTurnCounter players
+                 , hsLastMoved = Nothing
                  }
 
 initialState :: State
@@ -129,6 +132,8 @@ data HalmaViewState size =
   { _hvsBoard :: HalmaBoard size
   , _hvsSelectedField :: Maybe (Int, Int)
   , _hvsHighlightedFields :: [(Int, Int)]
+  , _hvsLastMoved :: Maybe (Int, Int)
+  , _hvsFinishedPlayers :: [Team]
   } deriving (Eq, Show)
 
 data ViewState where
@@ -144,6 +149,7 @@ data ViewEvent = Quit QuitType
                | NewGame
                | FieldClick (Int, Int)
                | EmptyClick
+               | AIMove
                deriving (Eq, Show)
 
 renderHalmaViewState
@@ -151,19 +157,20 @@ renderHalmaViewState
   => (Team -> Colour Double)
   -> HalmaViewState size
   -> QDiagram b R2 (Option (Last (Int, Int)))
-renderHalmaViewState teamColors (HalmaViewState board startPos highlighted) =
+renderHalmaViewState teamColors (HalmaViewState board startPos highlighted lastMoved _) =
   drawBoard' (getGrid board) drawField
   where
-    drawPiece t =
+    drawPiece t lastMoved' =
       let c = teamColors t
-      in circle 0.25 # fc c # lc (darken 0.5 c)
+      in circle 0.25 # fc c # lc (if lastMoved' then darken 0.2 c else darken 0.5 c) #
+        if lastMoved' then lw medium else id
     startField = startPos >>= flip lookupHalmaBoard board
     drawField p =
       (if Just p == startPos then lc black . lw thick else id) $
       case (lookupHalmaBoard p board, startField) of
-        (Just t, _) -> drawPiece t
+        (Just t, _) -> drawPiece t (Just p == lastMoved)
         (Nothing, Just t) | p `elem` highlighted ->
-          drawPiece t # opacity 0.5
+          drawPiece t False # opacity 0.5
         _ -> mempty
 
 data ButtonState a = ButtonActive a
@@ -191,6 +198,14 @@ button txt buttonState = (label <> background) # value val' # padX 1.05 # padY 1
     val' = case buttonState of
       ButtonActive val -> Option (Just (Last val))
       _ -> Option Nothing
+
+playerFinishedSign
+  :: (Renderable (Path R2) b, Renderable Text b, Backend b R2)
+  => Colour Double -> QDiagram b R2 (Option (Last a))
+playerFinishedSign color = (label <> background) # value (Option Nothing) # padX 1.05 # padY 1.5
+  where
+    label = text "finished" # fontSizeO 13
+    background = roundedRect 110 26 6 # fc color # lw none
 
 renderMenu
   :: (Renderable (Path R2) b, Renderable Text b, Backend b R2)
@@ -240,11 +255,15 @@ renderViewState _teamColors (w,h) (MenuView menuState) =
   in reposition (menuDiagram === newGameButton)
 renderViewState teamColors (w,h) (HalmaView halmaViewState) =
   let resize = sizedCentered (Dims w h) . toGtkCoords . pad 1.05
-      quitGameButton =
-        toGtkCoords $ padY 1.3 $ alignX (-1) $
-        button "Quit Game" $ ButtonActive $ Quit QuitGame
+      buttons = padY 1.3 $ quitGameButton === aiMoveButton
+      quitGameButton = button "Quit Game" $ ButtonActive $ Quit QuitGame
+      aiMoveButton = button "AI Move" $ aiMoveButtonState halmaViewState
+      aiMoveButtonState (HalmaViewState _ (Just _) _ _ _) = ButtonInactive
+      aiMoveButtonState (HalmaViewState _ Nothing _ _ _) = ButtonActive AIMove
+      finishedSigns = foldl (===) mempty $
+        map (playerFinishedSign . teamColors) $ _hvsFinishedPlayers halmaViewState
       field = resize (fmap (fmap FieldClick) <$> renderHalmaViewState teamColors halmaViewState)
-  in quitGameButton `atop` field
+  in toGtkCoords (buttons === finishedSigns) `atop` field
 
 external :: Managed (View ViewState, Controller ViewEvent)
 external = managed $ \f -> do
@@ -294,28 +313,36 @@ external = managed $ \f -> do
   wait res
 
 gameLoop :: HalmaState size -> Pipe ViewEvent (HalmaViewState size) (MS.State State) QuitType
-gameLoop (HalmaState ruleOptions board turnCounter) = noSelectionLoop
+gameLoop (HalmaState ruleOptions board turnCounter lastMoved) = noSelectionLoop
   where
     team = currentPlayer turnCounter
+    finishedPlayers = filter (hasFinished board) (_tcPlayers turnCounter)
     noSelectionLoop = do
-      yield $ HalmaViewState board Nothing []
+      yield $ HalmaViewState board Nothing [] lastMoved finishedPlayers
       event <- await
       case event of
         EmptyClick -> noSelectionLoop
         FieldClick p | lookupHalmaBoard p board == Just team ->
           selectionLoop p
         FieldClick _ -> noSelectionLoop
+        AIMove -> do
+          let (source, destination) = aiMove ruleOptions board $ currentPlayer turnCounter
+              Right board' = movePiece source destination board
+              halmaState' = HalmaState ruleOptions board' (nextTurn turnCounter) (Just destination)
+          State menuState _halmaState <- MS.get
+          MS.put $ State menuState (Just halmaState')
+          gameLoop halmaState'
         Quit quitType -> return quitType
         _ -> return QuitApp
     selectionLoop startPos = do
       let possible = possibleMoves ruleOptions board startPos
-      yield $ HalmaViewState board (Just startPos) possible
+      yield $ HalmaViewState board (Just startPos) possible Nothing finishedPlayers
       event <- await
       case event of
         EmptyClick -> noSelectionLoop
         FieldClick p | p `elem` possible -> do
           let Right board' = movePiece startPos p board
-              halmaState' = HalmaState ruleOptions board' (nextTurn turnCounter)
+              halmaState' = HalmaState ruleOptions board' (nextTurn turnCounter) (Just p)
           State menuState _halmaState <- MS.get
           MS.put $ State menuState (Just halmaState')
           gameLoop halmaState'
