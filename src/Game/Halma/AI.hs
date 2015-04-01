@@ -5,6 +5,7 @@ module Game.Halma.AI
 import Math.Geometry.Grid hiding (null)
 import Data.List (maximumBy, sort)
 import Data.Ord (comparing)
+import qualified Data.Map.Strict as M
 import Game.Halma.Board
 import Game.Halma.Rules
 
@@ -34,8 +35,8 @@ instance Ord Weighting where
 
 allOwnPieces :: HalmaBoard size -> Team -> [Index (HalmaGrid size)]
 allOwnPieces board team = 
-    filter ((Just team ==) . flip lookupHalmaBoard board)
-    $ indices (getGrid board)
+  map fst $ filter ((team ==) . snd) $
+              M.assocs (toMap board)
 
 allLegalMoves :: RuleOptions -> HalmaBoard size -> Team -> [Move size]
 allLegalMoves opts board team =
@@ -73,4 +74,4 @@ aiMove :: RuleOptions -> HalmaBoard size -> Team -> Move size
 aiMove opts board team = if null legalMoves then error "There is no legal move."
                          else maximumBy (comparing $ finalRating team . outcome board) legalMoves
   where legalMoves = allLegalMoves opts board team
-        finalRating = ignorantFixedDepth 1 opts
+        finalRating = ignorantFixedDepth 2 opts
