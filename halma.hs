@@ -8,7 +8,7 @@ module Main (main) where
 
 import Game.Halma.Board
 import Game.Halma.Rules
-import Game.Halma.AI
+import Game.Halma.AI.Ignorant
 import Data.Default
 import Game.Halma.Board.Draw
 import Graphics.UI.Gtk hiding (get)
