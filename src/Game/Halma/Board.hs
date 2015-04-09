@@ -9,6 +9,7 @@ module Game.Halma.Board
   , sideLength, numberOfFields
   , HalmaDirection (..)
   , oppositeDirection
+  , leftOf
   , rowsInDirection
   , corner
   , Team
@@ -66,6 +67,15 @@ oppositeDirection Northeast = Southwest
 oppositeDirection Southwest = Northeast
 oppositeDirection Northwest = Southeast
 oppositeDirection Southeast = Northwest
+
+leftOf :: HalmaDirection -> HalmaDirection
+leftOf North = Northwest
+leftOf Northwest = Southwest
+leftOf Southwest = South
+leftOf South = Southeast
+leftOf Southeast = Northeast
+leftOf Northeast = North
+
 
 getDirs :: HalmaDirection -> (HI.HexDirection, HI.HexDirection)
 getDirs North = (HI.Northwest, HI.Northeast)
