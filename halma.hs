@@ -8,7 +8,8 @@ module Main (main) where
 
 import Game.Halma.Board
 import Game.Halma.Rules
-import Game.Halma.AI
+import qualified Game.Halma.AI.Competitive as Competitive
+import qualified Game.Halma.AI.Ignorant as Ignorant
 import Data.Default
 import Game.Halma.Board.Draw
 import Graphics.UI.Gtk hiding (get)
@@ -18,6 +19,7 @@ import Diagrams.TwoD.Text (Text)
 import Diagrams.Backend.Gtk
 import Diagrams.Backend.Cairo.Internal (Cairo)
 import Data.AffineSpace.Point
+import Data.Maybe (isJust)
 import MVC
 import qualified Pipes.Prelude as PP
 import qualified Control.Monad.State.Strict as MS
@@ -134,6 +136,7 @@ data HalmaViewState size =
   , _hvsHighlightedFields :: [(Int, Int)]
   , _hvsLastMoved :: Maybe (Int, Int)
   , _hvsFinishedPlayers :: [Team]
+  , _hvsCompetitiveAIAllowed :: Bool
   } deriving (Eq, Show)
 
 data ViewState where
@@ -144,12 +147,15 @@ deriving instance Show ViewState
 
 data QuitType = QuitGame | QuitApp deriving (Show, Eq)
 
+data AIType = Ignorant | Competitive
+  deriving (Eq, Show)
+
 data ViewEvent = Quit QuitType
                | SetMenuState MenuState
                | NewGame
                | FieldClick (Int, Int)
                | EmptyClick
-               | AIMove
+               | AIMove AIType
                deriving (Eq, Show)
 
 renderHalmaViewState
@@ -157,7 +163,7 @@ renderHalmaViewState
   => (Team -> Colour Double)
   -> HalmaViewState size
   -> QDiagram b R2 (Option (Last (Int, Int)))
-renderHalmaViewState teamColors (HalmaViewState board startPos highlighted lastMoved _) =
+renderHalmaViewState teamColors (HalmaViewState board startPos highlighted lastMoved _ _) =
   drawBoard' (getGrid board) drawField
   where
     drawPiece t lastMoved' =
@@ -255,11 +261,15 @@ renderViewState _teamColors (w,h) (MenuView menuState) =
   in reposition (menuDiagram === newGameButton)
 renderViewState teamColors (w,h) (HalmaView halmaViewState) =
   let resize = sizedCentered (Dims w h) . toGtkCoords . pad 1.05
-      buttons = padY 1.3 $ quitGameButton === aiMoveButton
+      buttons = padY 1.3 $ quitGameButton === padY 1.3 aiButtons
       quitGameButton = button "Quit Game" $ ButtonActive $ Quit QuitGame
-      aiMoveButton = button "AI Move" $ aiMoveButtonState halmaViewState
-      aiMoveButtonState (HalmaViewState _ (Just _) _ _ _) = ButtonInactive
-      aiMoveButtonState (HalmaViewState _ Nothing _ _ _) = ButtonActive AIMove
+      aiButtons = button "AI Move" (aiButtonState Ignorant)
+              === if _hvsCompetitiveAIAllowed halmaViewState
+                  then button "Competitive" (aiButtonState Competitive) else mempty
+      aiButtonState aiMoveType =
+        if isJust (_hvsSelectedField halmaViewState)
+        then ButtonInactive
+        else ButtonActive $ AIMove aiMoveType
       finishedSigns = foldl (===) mempty $
         map (playerFinishedSign . teamColors) $ _hvsFinishedPlayers halmaViewState
       field = resize (fmap (fmap FieldClick) <$> renderHalmaViewState teamColors halmaViewState)
@@ -319,38 +329,40 @@ gameLoop (HalmaState ruleOptions board turnCounter lastMoved) = noSelectionLoop
     finishedPlayers = filter (hasFinished board) (_tcPlayers turnCounter)
     noSelectionLoop = do
       yield $ HalmaViewState board Nothing [] lastMoved finishedPlayers
+                             (length (_tcPlayers turnCounter)==2)
       event <- await
       case event of
         EmptyClick -> noSelectionLoop
         FieldClick p | lookupHalmaBoard p board == Just team ->
           selectionLoop p
         FieldClick _ -> noSelectionLoop
-        AIMove -> do
-          let (source, destination) = aiMove ruleOptions board $ currentPlayer turnCounter
-              Right board' = movePiece source destination board
-              halmaState' = HalmaState ruleOptions board' (nextTurn turnCounter) (Just destination)
-          State menuState _halmaState <- MS.get
-          MS.put $ State menuState (Just halmaState')
-          gameLoop halmaState'
+        AIMove Ignorant -> performMove $
+          Ignorant.aiMove ruleOptions board (currentPlayer turnCounter)
+        AIMove Competitive -> performMove $
+          Competitive.aiMove ruleOptions board
+            (currentPlayer turnCounter, currentPlayer $ nextTurn turnCounter)
         Quit quitType -> return quitType
         _ -> return QuitApp
     selectionLoop startPos = do
       let possible = possibleMoves ruleOptions board startPos
       yield $ HalmaViewState board (Just startPos) possible Nothing finishedPlayers
+                             (length (_tcPlayers turnCounter)==2)
       event <- await
       case event of
         EmptyClick -> noSelectionLoop
-        FieldClick p | p `elem` possible -> do
-          let Right board' = movePiece startPos p board
-              halmaState' = HalmaState ruleOptions board' (nextTurn turnCounter) (Just p)
-          State menuState _halmaState <- MS.get
-          MS.put $ State menuState (Just halmaState')
-          gameLoop halmaState'
+        FieldClick p | p `elem` possible -> performMove (startPos, p)
         FieldClick p | lookupHalmaBoard p board == Just team ->
           selectionLoop p
         FieldClick _ -> noSelectionLoop
         Quit quitType -> return quitType
         _ -> return QuitApp
+    performMove (source, destination) = do
+      let Right board' = movePiece source destination board
+          halmaState' = HalmaState ruleOptions board' (nextTurn turnCounter) (Just destination)
+      State menuState _halmaState <- MS.get
+      MS.put $ State menuState (Just halmaState')
+      gameLoop halmaState'
+            
 
 pipe :: Pipe ViewEvent ViewState (MS.State State) ()
 pipe = do
