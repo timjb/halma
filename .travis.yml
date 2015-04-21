@@ -9,6 +9,6 @@ matrix:
     - ghc: "7.6"
   include:
     - ghc: "7.8"
-      env: STACKAGE=http://www.stackage.org/lts/cabal.config
+      env: STACKAGE=https://www.stackage.org/snapshot/nightly-2015-04-21/cabal.config
     - ghc: "7.6"
-      env: STACKAGE=http://www.stackage.org/snapshot/2014-12-10-ghc76-inc/cabal.config
+      env: STACKAGE=https://www.stackage.org/snapshot/nightly-2015-04-21/cabal.config
