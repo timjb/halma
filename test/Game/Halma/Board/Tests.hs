@@ -38,10 +38,13 @@ testDistancesFromCenter :: Assertion
 testDistancesFromCenter = do
   [1,6,12,18,24,24,18,12,6,0,0,0] @=?* actual SmallGrid
   [1,6,12,18,24,30,30,24,18,12,6,0,0,0] @=?* actual LargeGrid
-  where center = (0, 0)
-        distCenter hg = distance hg center
-        fieldsAtDistance hg d = filter ((== d) . distCenter hg) (indices hg)
-        actual hg = map (length . fieldsAtDistance hg) [0,1..]
+  where
+    distCenter :: HalmaGrid s -> (Int, Int) -> Int
+    distCenter hg = distance hg (0, 0)
+    fieldsAtDistance :: HalmaGrid s -> Int -> [(Int, Int)]
+    fieldsAtDistance hg d = filter ((== d) . distCenter hg) (indices hg)
+    actual :: HalmaGrid s -> [Int]
+    actual hg = map (length . fieldsAtDistance hg) [0,1..]
 
 testBoundaryLength :: Assertion
 testBoundaryLength = do
