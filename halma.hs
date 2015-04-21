@@ -3,6 +3,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+--{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
 
@@ -13,12 +14,10 @@ import qualified Game.Halma.AI.Ignorant as Ignorant
 import Data.Default
 import Game.Halma.Board.Draw
 import Graphics.UI.Gtk hiding (get)
-import Diagrams.Prelude hiding ((<>))
-import Diagrams.TwoD.Size (requiredScale)
+import Diagrams.Prelude hiding ((<>), set)
 import Diagrams.TwoD.Text (Text)
 import Diagrams.Backend.Gtk
 import Diagrams.Backend.Cairo.Internal (Cairo)
-import Data.AffineSpace.Point
 import Data.Maybe (isJust)
 import MVC
 import qualified Pipes.Prelude as PP
@@ -31,28 +30,13 @@ import Control.Monad (when)
 import qualified Data.Function as F
 
 
-sizedCentered :: (Transformable a, Enveloped a, V a ~ R2) => SizeSpec2D -> a -> a
-sizedCentered spec d = transform adjustT d
-  where
-    size = size2D d
-    s    = requiredScale spec size
-    finalSz = case spec of
-      Dims w h -> (w,h)
-      _        -> scale s size
-    tr = (0.5 *. p2 finalSz) .-. (s *. center2D d)
-    adjustT = translation tr <> scaling s
-
-centered :: (Transformable a, Enveloped a, V a ~ R2) => SizeSpec2D -> a -> a
+centered, sizedCentered
+  :: (Transformable a, Enveloped a, V a ~ V2, N a ~ Double)
+  => SizeSpec V2 Double -> a -> a
 centered spec d = transform adjustT d
   where
-    size = size2D d
-    s    = requiredScale spec size
-    finalSz = case spec of
-      Dims w h -> (w,h)
-      _        -> scale s size
-    tr = (0.5 *. p2 finalSz) .-. center2D d
-    adjustT = translation tr
-
+    adjustT = translation $ (0.5 *. P (specToSize 0 spec)) .-. centerPoint d
+sizedCentered spec = centered spec . sized spec
 
 data TurnCounter p = TurnCounter
   { _tcPlayers :: [p]
@@ -159,10 +143,10 @@ data ViewEvent = Quit QuitType
                deriving (Eq, Show)
 
 renderHalmaViewState
-  :: Renderable (Path R2) b
+  :: (V b ~ V2, N b ~ Double, Renderable (Path V2 Double) b)
   => (Team -> Colour Double)
   -> HalmaViewState size
-  -> QDiagram b R2 (Option (Last (Int, Int)))
+  -> QDiagram b V2 Double (Option (Last (Int, Int)))
 renderHalmaViewState teamColors (HalmaViewState board startPos highlighted lastMoved _ _) =
   drawBoard' (getGrid board) drawField
   where
@@ -184,10 +168,10 @@ data ButtonState a = ButtonActive a
                    | ButtonSelected deriving (Eq, Show)
 
 button
-  :: (Renderable (Path R2) b, Renderable Text b, Backend b R2)
+  :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
   => String
   -> ButtonState a
-  -> QDiagram b R2 (Option (Last a))
+  -> QDiagram b V2 Double (Option (Last a))
 button txt buttonState = (label <> background) # value val' # padX 1.05 # padY 1.2
   where
     (label, background) = case buttonState of
@@ -206,24 +190,30 @@ button txt buttonState = (label <> background) # value val' # padX 1.05 # padY 1
       _ -> Option Nothing
 
 playerFinishedSign
-  :: (Renderable (Path R2) b, Renderable Text b, Backend b R2)
-  => Colour Double -> QDiagram b R2 (Option (Last a))
+  :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
+  => Colour Double -> QDiagram b V2 Double (Option (Last a))
 playerFinishedSign color = (label <> background) # value (Option Nothing) # padX 1.05 # padY 1.5
   where
     label = text "finished" # fontSizeO 13
     background = roundedRect 110 26 6 # fc color # lw none
 
 renderMenu
-  :: (Renderable (Path R2) b, Renderable Text b, Backend b R2)
+  :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
   => MenuState
-  -> QDiagram b R2 (Option (Last MenuState))
+  -> QDiagram b V2 Double (Option (Last MenuState))
 renderMenu (MenuState gridSize nop) =
   ((===) `F.on` (centerX . horizontal)) sizeButtons playerButtons
   where
     setPlayers = MenuState gridSize
     playerButtonAction nop' = if (nop == nop') then ButtonSelected else ButtonActive (setPlayers nop')
     horizontal = foldl (|||) mempty
-    (sizeButtons, playerButtons) = case gridSize of
+    (sizeButtons, playerButtons) = allButtons
+    allButtons
+      :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
+      => ( [ QDiagram b V2 Double (Option (Last MenuState)) ]
+         , [ QDiagram b V2 Double (Option (Last MenuState)) ]
+         )
+    allButtons = case gridSize of
       SmallGrid ->
         let nopL = case nop of
                      TwoPlayers -> TwoPlayers
@@ -253,14 +243,14 @@ renderViewState
   :: (Team -> Colour Double)
   -> (Double, Double)
   -> ViewState
-  -> QDiagram Cairo R2 (Option (Last ViewEvent))
+  -> QDiagram Cairo V2 Double (Option (Last ViewEvent))
 renderViewState _teamColors (w,h) (MenuView menuState) =
   let menuDiagram   = fmap (fmap SetMenuState) <$> renderMenu menuState
       newGameButton = button "New Game" (ButtonActive NewGame) # padY 1.5
-      reposition    = centered (Dims w h) . toGtkCoords
+      reposition    = centered (dims (r2 (w, h))) . toGtkCoords
   in reposition (menuDiagram === newGameButton)
 renderViewState teamColors (w,h) (HalmaView halmaViewState) =
-  let resize = sizedCentered (Dims w h) . toGtkCoords . pad 1.05
+  let resize = sizedCentered (dims (r2 (w, h))) . toGtkCoords . pad 1.05
       buttons = padY 1.3 $ quitGameButton === padY 1.3 aiButtons
       quitGameButton = button "Quit Game" $ ButtonActive $ Quit QuitGame
       aiButtons = button "AI Move" (aiButtonState Ignorant)

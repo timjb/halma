@@ -128,13 +128,13 @@ instance Grid (HalmaGrid size) where
           atLeastTwo False True True = True
           atLeastTwo _ _ _ = False
 
-instance FiniteGrid (HalmaGrid S) where
-  type Size (HalmaGrid S) = ()
+instance FiniteGrid (HalmaGrid 'S) where
+  type Size (HalmaGrid 'S) = ()
   size _ = ()
   maxPossibleDistance _ = 16
 
-instance FiniteGrid (HalmaGrid L) where
-  type Size (HalmaGrid L) = ()
+instance FiniteGrid (HalmaGrid 'L) where
+  type Size (HalmaGrid 'L) = ()
   size _ = ()
   maxPossibleDistance _ = 20
 

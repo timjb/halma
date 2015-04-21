@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TypeFamilies #-}
 
 module Game.Halma.Board.Draw
   ( defaultTeamColours
@@ -20,10 +20,10 @@ defaultTeamColours Southeast = blue
 -- | Render the board using the helper function for drawing the fields.
 -- Supports querying for field positions.
 drawBoard'
-  :: Renderable (Path R2) b
+  :: (V b ~ V2, N b ~ Double, Renderable (Path V2 Double) b)
   => HalmaGrid size
-  -> ((Int,Int) -> Diagram b R2)
-  -> QDiagram b R2 (Option (Last (Int, Int)))
+  -> ((Int,Int) -> Diagram b)
+  -> QDiagram b V2 Double (Option (Last (Int, Int)))
 drawBoard' grid drawField =
     targets `atop`
     (mconcat
@@ -47,10 +47,10 @@ drawBoard' grid drawField =
 -- | Render the board using the given team colors. Supports querying for field
 -- positions.
 drawBoard
-  :: Renderable (Path R2) b
+  :: (V b ~ V2, N b ~ Double, Renderable (Path V2 Double) b)
   => HalmaBoard size
   -> (Team -> Colour Double)
-  -> QDiagram b R2 (Option (Last (Int, Int)))
+  -> QDiagram b V2 Double (Option (Last (Int, Int)))
 drawBoard halmaBoard teamColors = drawBoard' (getGrid halmaBoard) drawField
   where drawPiece t =
           let c = teamColors t
