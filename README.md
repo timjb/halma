@@ -1,4 +1,4 @@
-# Halma [![Build Status][travis-image]][travis-url] [![Hackage version][hackage-image]][hackage-url] [![Hackage dependencies][hackage-deps-image]][hackage-deps-url]
+# Halma [![Build Status][travis-image]][travis-url] [![Hackage version][hackage-image]][hackage-url] [![Hackage dependencies][hackage-deps-image]][hackage-deps-url] [![Code Climate][codeclimate-image]][codeclimate-url]
 
 ![Halma Game][game-image]
 ![Halma Menu][menu-image]
@@ -21,6 +21,8 @@ See the docs on [Hackage][hackage-url].
 [hackage-url]: http://hackage.haskell.org/package/halma
 [hackage-deps-image]: https://img.shields.io/hackage-deps/v/halma.svg?style=flat
 [hackage-deps-url]: http://packdeps.haskellers.com/feed?needle=halma
+[codeclimate-image]: https://codeclimate.com/github/timjb/halma/badges/gpa.svg
+[codeclimate-url]: https://codeclimate.com/github/timjb/halma
 
 [game-image]: https://cdn.rawgit.com/timjb/halma/master/images/halma-game.png
 [menu-image]: https://cdn.rawgit.com/timjb/halma/master/images/halma-menu.png
