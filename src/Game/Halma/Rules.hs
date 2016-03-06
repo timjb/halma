@@ -16,9 +16,9 @@ import qualified Data.Set as S
 
 
 data MoveRestriction =
-    Allowed -- moves to this kind of field are allowed
-  | Temporarily -- the player can pass the field but cannot occupy it
-  | Forbidden -- the player cant pass or occupy the field
+    Allowed     -- ^ moves of this kind of field are allowed
+  | Temporarily -- ^ the player can pass the field but cannot occupy it
+  | Forbidden   -- ^ the player can't pass or occupy the field
   deriving (Show, Eq)
 
 data RuleOptions =
