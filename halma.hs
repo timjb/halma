@@ -11,8 +11,11 @@ import Game.Halma.Board
 import Game.Halma.Rules
 import qualified Game.Halma.AI.Competitive as Competitive
 import qualified Game.Halma.AI.Ignorant as Ignorant
-import Data.Default
 import Game.Halma.Board.Draw
+import Game.TurnCounter
+import Game.Halma.State
+import Game.Halma.Configuration
+
 import Graphics.UI.Gtk hiding (get)
 import Diagrams.Prelude hiding ((<>), set)
 import Diagrams.TwoD.Text (Text)
@@ -29,7 +32,6 @@ import System.TimeIt
 import Control.Monad (when)
 import qualified Data.Function as F
 
-
 centered, sizedCentered
   :: (Transformable a, Enveloped a, V a ~ V2, N a ~ Double)
   => SizeSpec V2 Double -> a -> a
@@ -38,80 +40,17 @@ centered spec d = transform adjustT d
     adjustT = translation $ (0.5 *. P (specToSize 0 spec)) .-. centerPoint d
 sizedCentered spec = centered spec . sized spec
 
-data TurnCounter p = TurnCounter
-  { _tcPlayers :: [p]
-  , _tcCounter :: Int
-  } deriving (Eq, Show)
-
-newTurnCounter :: [p] -> TurnCounter p
-newTurnCounter = flip TurnCounter 0
-
-nextTurn :: TurnCounter p -> TurnCounter p
-nextTurn (TurnCounter ps c) = TurnCounter ps (c+1)
-
-currentPlayer :: TurnCounter p -> p
-currentPlayer (TurnCounter ps c) = ps !! (c `mod` length ps)
-
-_currentRound :: TurnCounter p -> Int
-_currentRound (TurnCounter ps c) = c `div` length ps
-
-
-data HalmaState size =
-  HalmaState
-  { hsRuleOptions :: RuleOptions
-  , hsBoard :: HalmaBoard size
-  , hsTurnCounter :: TurnCounter Team
-  , hsLastMoved :: Maybe (Int, Int)
-  } deriving (Eq, Show)
-
-data NumberOfPlayers :: HalmaGridSize -> * where
-  TwoPlayers   :: NumberOfPlayers size
-  ThreePlayers :: NumberOfPlayers size
-  FourPlayers  :: NumberOfPlayers 'L
-  FivePlayers  :: NumberOfPlayers 'L
-  SixPlayers   :: NumberOfPlayers 'L
-
-deriving instance Show (NumberOfPlayers size)
-
-instance Eq (NumberOfPlayers size) where
-  a == b = show a == show b
-
-getPlayers :: NumberOfPlayers size -> [Team]
-getPlayers TwoPlayers   = [North, South]
-getPlayers ThreePlayers = [Northeast, South, Northwest]
-getPlayers FourPlayers  = [Northeast, Southeast, Southwest, Northwest]
-getPlayers FivePlayers  = [Northeast, Southeast, South, Southwest, Northwest]
-getPlayers SixPlayers   = [minBound..maxBound]
-
-data MenuState where
-  MenuState :: HalmaGrid size -> NumberOfPlayers size -> MenuState
-
-deriving instance Show MenuState
-
-instance Eq MenuState where
-  a == b = show a == show b
-
-initialMenuState :: MenuState
-initialMenuState = MenuState SmallGrid TwoPlayers
-
 data State where
-  State :: MenuState -> Maybe (HalmaState size) -> State
+  State :: Configuration size -> Maybe (HalmaState size) -> State
 
 deriving instance Show State
 
-newGame :: State -> State
-newGame (State ms@(MenuState halmaGrid nop) _) = State ms (Just halmaState)
-  where
-    players = getPlayers nop
-    halmaState = 
-      HalmaState { hsRuleOptions = def
-                 , hsBoard = initialBoard halmaGrid (flip elem players)
-                 , hsTurnCounter = newTurnCounter players
-                 , hsLastMoved = Nothing
-                 }
+startNewGame :: State -> State
+startNewGame (State config _) =
+  State config (Just (newGame config))
 
 initialState :: State
-initialState = State initialMenuState Nothing
+initialState = State defaultConfiguration Nothing
 
 data HalmaViewState size =
   HalmaViewState
@@ -124,7 +63,7 @@ data HalmaViewState size =
   } deriving (Eq, Show)
 
 data ViewState where
-  MenuView :: MenuState -> ViewState
+  MenuView  :: Configuration size -> ViewState
   HalmaView :: HalmaViewState size -> ViewState
 
 deriving instance Show ViewState
@@ -135,7 +74,7 @@ data AIType = Ignorant | Competitive
   deriving (Eq, Show)
 
 data ViewEvent = Quit QuitType
-               | SetMenuState MenuState
+               | SetConfiguration SomeConfiguration
                | NewGame
                | FieldClick (Int, Int)
                | EmptyClick
@@ -199,19 +138,19 @@ playerFinishedSign color = (label <> background) # value (Option Nothing) # padX
 
 renderMenu
   :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
-  => MenuState
-  -> QDiagram b V2 Double (Option (Last MenuState))
-renderMenu (MenuState gridSize nop) =
+  => Configuration size
+  -> QDiagram b V2 Double (Option (Last SomeConfiguration))
+renderMenu (Configuration gridSize nop) =
   ((===) `F.on` (centerX . horizontal)) sizeButtons playerButtons
   where
-    setPlayers = MenuState gridSize
+    setPlayers = SomeConfiguration . Configuration gridSize
     playerButtonAction nop' = if (nop == nop') then ButtonSelected else ButtonActive (setPlayers nop')
     horizontal = foldl (|||) mempty
     (sizeButtons, playerButtons) = allButtons
     allButtons
       :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
-      => ( [ QDiagram b V2 Double (Option (Last MenuState)) ]
-         , [ QDiagram b V2 Double (Option (Last MenuState)) ]
+      => ( [ QDiagram b V2 Double (Option (Last SomeConfiguration)) ]
+         , [ QDiagram b V2 Double (Option (Last SomeConfiguration)) ]
          )
     allButtons = case gridSize of
       SmallGrid ->
@@ -220,7 +159,7 @@ renderMenu (MenuState gridSize nop) =
                      ThreePlayers -> ThreePlayers
                      _ -> error "impossible"
         in ( [ button "Small Grid" ButtonSelected
-             , button "Large Grid" $ ButtonActive $ MenuState LargeGrid nopL
+             , button "Large Grid" $ ButtonActive $ SomeConfiguration $ Configuration LargeGrid nopL
              ]
            , [ button "Two Players" $ playerButtonAction TwoPlayers
              , button "Three Players" $ playerButtonAction ThreePlayers
@@ -230,7 +169,7 @@ renderMenu (MenuState gridSize nop) =
         let nopS = case nop of
                      TwoPlayers -> TwoPlayers
                      _ -> ThreePlayers
-        in ( [ button "Small Grid" $ ButtonActive $ MenuState SmallGrid nopS
+        in ( [ button "Small Grid" $ ButtonActive $ SomeConfiguration $ Configuration SmallGrid nopS
              , button "Large Grid" ButtonSelected
              ]
            , map (\(numStr, nop') -> button (numStr ++ " Players") (playerButtonAction nop')) $
@@ -244,8 +183,8 @@ renderViewState
   -> (Double, Double)
   -> ViewState
   -> QDiagram Cairo V2 Double (Option (Last ViewEvent))
-renderViewState _teamColors (w,h) (MenuView menuState) =
-  let menuDiagram   = fmap (fmap SetMenuState) <$> renderMenu menuState
+renderViewState _teamColors (w,h) (MenuView config) =
+  let menuDiagram   = fmap (fmap SetConfiguration) <$> renderMenu config
       newGameButton = button "New Game" (ButtonActive NewGame) # padY 1.5
       reposition    = centered (dims (r2 (w, h))) . toGtkCoords
   in reposition (menuDiagram === newGameButton)
@@ -312,14 +251,17 @@ external = managed $ \f -> do
   mainGUI
   wait res
 
-gameLoop :: HalmaState size -> Pipe ViewEvent (HalmaViewState size) (MS.State State) QuitType
-gameLoop (HalmaState ruleOptions board turnCounter lastMoved) = noSelectionLoop
+gameLoop
+  :: Configuration size
+  -> HalmaState size
+  -> Pipe ViewEvent (HalmaViewState size) (MS.State State) QuitType
+gameLoop config (HalmaState ruleOptions board turnCounter lastMoved) = noSelectionLoop
   where
     team = currentPlayer turnCounter
-    finishedPlayers = filter (hasFinished board) (_tcPlayers turnCounter)
+    finishedPlayers = filter (hasFinished board) (tcPlayers turnCounter)
     noSelectionLoop = do
       yield $ HalmaViewState board Nothing [] lastMoved finishedPlayers
-                             (length (_tcPlayers turnCounter)==2)
+                             (length (tcPlayers turnCounter)==2)
       event <- await
       case event of
         EmptyClick -> noSelectionLoop
@@ -336,7 +278,7 @@ gameLoop (HalmaState ruleOptions board turnCounter lastMoved) = noSelectionLoop
     selectionLoop startPos = do
       let possible = possibleMoves ruleOptions board startPos
       yield $ HalmaViewState board (Just startPos) possible Nothing finishedPlayers
-                             (length (_tcPlayers turnCounter)==2)
+                             (length (tcPlayers turnCounter)==2)
       event <- await
       case event of
         EmptyClick -> noSelectionLoop
@@ -349,25 +291,25 @@ gameLoop (HalmaState ruleOptions board turnCounter lastMoved) = noSelectionLoop
     performMove (source, destination) = do
       let Right board' = movePiece source destination board
           halmaState' = HalmaState ruleOptions board' (nextTurn turnCounter) (Just destination)
-      State menuState _halmaState <- MS.get
-      MS.put $ State menuState (Just halmaState')
-      gameLoop halmaState'
-            
+      MS.put $ State config (Just halmaState')
+      gameLoop config halmaState'
+
 
 pipe :: Pipe ViewEvent ViewState (MS.State State) ()
 pipe = do
-  st@(State menuState mHalmaState) <- MS.get
+  st@(State config mHalmaState) <- MS.get
   case mHalmaState of
     Just halmaState -> do
-      quitType <- gameLoop halmaState >-> PP.map HalmaView
+      quitType <- gameLoop config halmaState >-> PP.map HalmaView
       when (quitType == QuitGame) $
-        MS.put (State menuState Nothing) >> pipe
+        MS.put (State config Nothing) >> pipe
     Nothing -> do
-      yield $ MenuView menuState
+      yield $ MenuView config
       event <- await
       case event of
-        SetMenuState menuState' -> MS.put (State menuState' Nothing) >> pipe
-        NewGame -> MS.put (newGame st) >> pipe
+        SetConfiguration (SomeConfiguration config') ->
+          MS.put (State config' Nothing) >> pipe
+        NewGame -> MS.put (startNewGame st) >> pipe
         _ -> pipe
 
 main :: IO ()
