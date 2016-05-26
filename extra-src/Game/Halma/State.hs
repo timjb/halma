@@ -3,16 +3,15 @@ module Game.Halma.State
   , newGame
   ) where
 
-import Game.TurnCounter
-import Game.Halma.Configuration
-
 import Game.Halma.Board
+import Game.Halma.Configuration
 import Game.Halma.Rules
+import Game.TurnCounter
 
 import Data.Default (def)
 
-data HalmaState size =
-  HalmaState
+data HalmaState size
+  = HalmaState
   { hsRuleOptions :: RuleOptions
   , hsBoard :: HalmaBoard size
   , hsTurnCounter :: TurnCounter Team
@@ -22,9 +21,9 @@ data HalmaState size =
 newGame :: Configuration size -> HalmaState size
 newGame (Configuration halmaGrid nop) =
   HalmaState
-    { hsRuleOptions = def
-    , hsBoard = initialBoard halmaGrid (flip elem players)
-    , hsTurnCounter = newTurnCounter players
-    , hsLastMoved = Nothing
-    }
+  { hsRuleOptions = def
+  , hsBoard = initialBoard halmaGrid (flip elem players)
+  , hsTurnCounter = newTurnCounter players
+  , hsLastMoved = Nothing
+  }
   where players = getPlayers nop

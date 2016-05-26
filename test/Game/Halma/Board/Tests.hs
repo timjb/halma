@@ -5,21 +5,19 @@
 
 module Game.Halma.Board.Tests (tests) where
 
+import Control.Monad (forM_)
+import Data.List (permutations, sortBy)
+import Data.Maybe (isJust, fromJust)
+import Data.Function (on)
+import Game.Halma.Board
+import Math.Geometry.Grid
 import Test.HUnit hiding (Test)
 import Test.QuickCheck hiding (Result)
 import Test.Framework
 import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-
-import Data.List (permutations, sortBy)
-import Data.Maybe (isJust, fromJust)
-import Data.Function (on)
-import Control.Monad (forM_)
 import qualified Data.Map.Strict as M
-
-import Math.Geometry.Grid
 import qualified Math.Geometry.Grid.HexagonalInternal as HI
-import Game.Halma.Board
 
 testRowsInDirection :: Assertion
 testRowsInDirection =
@@ -54,11 +52,11 @@ testBoundaryLength = do
 testDirectionTo :: Assertion
 testDirectionTo = do
   let c = corner SmallGrid
-  [HI.Northeast] @=? directionTo SmallGrid (c South) (c Southeast)
-  [HI.Northeast] @=? directionTo SmallGrid (c South) (c Northeast)
+  [HexGrid.Northeast] @=? directionTo SmallGrid (c South) (c Southeast)
+  [HexGrid.Northeast] @=? directionTo SmallGrid (c South) (c Northeast)
   assertOneOf
     (directionTo SmallGrid (c South) (c North))
-    (permutations [HI.Northeast, HI.Northwest])
+    (permutations [HexGrid.Northeast, HexGrid.Northwest])
 
 assertOneOf :: (Eq a, Show a) => a -> [a] -> Assertion
 assertOneOf actual validResults = assertBool msg (actual `elem` validResults)
@@ -66,12 +64,13 @@ assertOneOf actual validResults = assertBool msg (actual `elem` validResults)
 
 numbersCorrect :: HalmaGrid size -> [Maybe Team] -> Bool
 numbersCorrect halmaGrid = go 15 15 (numberOfFields halmaGrid - 2*15)
-  where go :: Int -> Int -> Int -> [Maybe Team] -> Bool
-        go 0 0 0 [] = True
-        go !n !s !e (Just North : rs) = go (n-1) s e rs
-        go !n !s !e (Just South : rs) = go n (s-1) e rs
-        go !n !s !e (Nothing : rs) = go n s (e-1) rs
-        go _ _ _ _ = False
+  where
+    go :: Int -> Int -> Int -> [Maybe Team] -> Bool
+    go 0 0 0 [] = True
+    go !n !s !e (Just North : rs) = go (n-1) s e rs
+    go !n !s !e (Just South : rs) = go n (s-1) e rs
+    go !n !s !e (Nothing : rs) = go n s (e-1) rs
+    go _ _ _ _ = False
 
 testInitialBoard :: Assertion
 testInitialBoard = ass SmallGrid >> ass LargeGrid
@@ -121,13 +120,14 @@ prop_moveNumbersInvariant halmaBoard = do
       return $ lookupHalmaBoard startPos halmaBoard == Nothing || isJust (lookupHalmaBoard endPos halmaBoard)
     Right halmaBoard' -> do
       let pieces = map (\p -> lookupHalmaBoard p halmaBoard') (indices halmaGrid)
-      return $ lookupHalmaBoard endPos halmaBoard' == lookupHalmaBoard startPos halmaBoard &&
-               lookupHalmaBoard endPos halmaBoard  == lookupHalmaBoard startPos halmaBoard' &&
-               numbersCorrect halmaGrid pieces
-
+      return $
+        lookupHalmaBoard endPos halmaBoard' == lookupHalmaBoard startPos halmaBoard &&
+        lookupHalmaBoard endPos halmaBoard  == lookupHalmaBoard startPos halmaBoard' &&
+        numbersCorrect halmaGrid pieces
 
 tests :: Test
-tests = testGroup "Game.Halma.Board.Tests"
+tests =
+  testGroup "Game.Halma.Board.Tests"
   [ testCase "testRowsInDirection" testRowsInDirection
   , testCase "testDistancesFromCenter" testDistancesFromCenter
   , testCase "testBoundaryLength" testBoundaryLength

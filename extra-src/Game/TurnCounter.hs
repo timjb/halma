@@ -6,7 +6,8 @@ module Game.TurnCounter
   , currentRound
   ) where
 
-data TurnCounter p = TurnCounter
+data TurnCounter p
+  = TurnCounter
   { tcPlayers :: [p]
   , tcCounter :: Int
   } deriving (Eq, Show)

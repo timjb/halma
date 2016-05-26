@@ -27,11 +27,13 @@ instance Eq (NumberOfPlayers size) where
   a == b = show a == show b
 
 getPlayers :: NumberOfPlayers size -> [Team]
-getPlayers TwoPlayers   = [North, South]
-getPlayers ThreePlayers = [Northeast, South, Northwest]
-getPlayers FourPlayers  = [Northeast, Southeast, Southwest, Northwest]
-getPlayers FivePlayers  = [Northeast, Southeast, South, Southwest, Northwest]
-getPlayers SixPlayers   = [minBound..maxBound]
+getPlayers numberOfPlayers =
+  case numberOfPlayers of
+    TwoPlayers   -> [North, South]
+    ThreePlayers -> [Northeast, South, Northwest]
+    FourPlayers  -> [Northeast, Southeast, Southwest, Northwest]
+    FivePlayers  -> [Northeast, Southeast, South, Southwest, Northwest]
+    SixPlayers   -> [minBound..maxBound]
 
 data Configuration :: HalmaGridSize -> * where
   Configuration :: HalmaGrid size -> NumberOfPlayers size -> Configuration size

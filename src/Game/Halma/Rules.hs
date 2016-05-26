@@ -5,30 +5,31 @@ module Game.Halma.Rules
   , hasFinished
   ) where
 
-import Math.Geometry.Grid
-import qualified Math.Geometry.Grid.HexagonalInternal as HI
 import Game.Halma.Board
+
+import Control.Monad (guard)
 import Data.Default
 import Data.Function (on)
-import Data.Maybe (catMaybes)
-import Control.Monad (guard)
+import Data.Maybe (catMaybes, isJust, isNothing)
+import Math.Geometry.Grid
 import qualified Data.Set as S
+import qualified Math.Geometry.Grid.HexagonalInternal as HexGrid
 
 
-data MoveRestriction =
-    Allowed     -- ^ moves of this kind of field are allowed
+data MoveRestriction
+  = Allowed     -- ^ moves of this kind of field are allowed
   | Temporarily -- ^ the player can pass the field but cannot occupy it
   | Forbidden   -- ^ the player can't pass or occupy the field
   deriving (Show, Eq)
 
-data RuleOptions =
-  RuleOptions { movingBackwards :: MoveRestriction -- ^ May pieces be moved backwards?
-              , invading :: MoveRestriction -- ^ May pieces be moved into other star corners?
-              } deriving (Show, Eq)
+data RuleOptions
+  = RuleOptions
+  { movingBackwards :: MoveRestriction -- ^ May pieces be moved backwards?
+  , invading :: MoveRestriction -- ^ May pieces be moved into other star corners?
+  } deriving (Show, Eq)
 
 instance Default RuleOptions where
-  def = RuleOptions { movingBackwards = Temporarily
-                    , invading = Allowed }
+  def = RuleOptions { movingBackwards = Temporarily, invading = Allowed }
 
 filterForward :: (Int, Int) -> HalmaDirection -> [(Int, Int)] -> [(Int, Int)]
 filterForward startPos halmaDir =
@@ -47,16 +48,19 @@ possibleStepMoves
 possibleStepMoves ruleOptions halmaBoard startPos =
   case lookupHalmaBoard startPos halmaBoard of
     Nothing -> []
-    Just team ->
-      ruleOptsFilters $
+    Just piece ->
+      ruleOptsFilters (pieceTeam piece) $
       filter ((== Nothing) . flip lookupHalmaBoard halmaBoard) $
       neighbours (getGrid halmaBoard) startPos
-      where ruleOptsFilters = setFilter (movingBackwards ruleOptions)
-                                        (filterForward startPos team)
-                            . setFilter (invading ruleOptions)
-                                        (filterNonInvading team (getGrid halmaBoard))
-            setFilter Allowed = const id
-            setFilter _       = id
+  where
+    ruleOptsFilters team =
+      setFilter movingBackwards (filterForward startPos team) .
+      setFilter invading (filterNonInvading team (getGrid halmaBoard))
+    setFilter ruleRestriction filterRule positions =
+      case ruleRestriction ruleOptions of
+        Allowed -> positions
+        Temporarily -> filterRule positions
+        Forbidden -> filterRule positions
 
 possibleJumpMoves
   :: RuleOptions
@@ -66,40 +70,48 @@ possibleJumpMoves
 possibleJumpMoves ruleOptions halmaBoard startPos =
   case lookupHalmaBoard startPos halmaBoard of
     Nothing -> []
-    Just team ->
-      finalRuleOptsFilters $
-      S.toList $ go S.empty (filteredJumpTargets startPos)
-      where hexDirections =
-              [ HI.West, HI.Northwest, HI.Northeast
-              , HI.East, HI.Southeast, HI.Southwest
-              ]
-            isEmpty = (== Nothing) . flip lookupHalmaBoard halmaBoard
-            maybeJump p dir = do
-              next1 <- neighbour (getGrid halmaBoard) p dir
-              next2 <- neighbour (getGrid halmaBoard) next1 dir
-              guard $ not (isEmpty next1) && isEmpty next2
-              return next2
-            filteredJumpTargets p = continualRuleOptsFilters p $ jumpTargets p
-            jumpTargets p = catMaybes $ map (maybeJump p) hexDirections
-            go set [] = set
-            go set (p:ps) =
-              if S.member p set
-              then go set ps
-              else go (S.insert p set) (filteredJumpTargets p ++ ps)
-            finalRuleOptsFilters =
-                setFinalFilter (movingBackwards ruleOptions)
-                               (filterForward startPos team)
-              . setFinalFilter (invading ruleOptions)
-                               (filterNonInvading team (getGrid halmaBoard))
-            continualRuleOptsFilters pos =
-                setContinualFilter (movingBackwards ruleOptions)
-                                   (filterForward pos team)
-              . setContinualFilter (invading ruleOptions)
-                                   (filterNonInvading team (getGrid halmaBoard))
-            setFinalFilter Temporarily = id
-            setFinalFilter _           = const id
-            setContinualFilter Forbidden = id
-            setContinualFilter _         = const id
+    Just piece ->
+      finalRuleOptsFilters (pieceTeam piece) $ S.toList $
+      allJumpTargets (pieceTeam piece)
+  where
+    hexDirections =
+      [ HexGrid.West, HexGrid.Northwest, HexGrid.Northeast
+      , HexGrid.East, HexGrid.Southeast, HexGrid.Southwest
+      ]
+    isEmpty pos = isNothing (lookupHalmaBoard pos halmaBoard)
+    isOccupied pos = isJust (lookupHalmaBoard pos halmaBoard)
+    maybeJump p dir = do
+      next1 <- neighbour (getGrid halmaBoard) p dir
+      next2 <- neighbour (getGrid halmaBoard) next1 dir
+      guard (isOccupied next1 && isEmpty next2)
+      return next2
+    nextJumpTargets team pos =
+      continualRuleOptsFilters team pos $
+      catMaybes (map (maybeJump pos) hexDirections)
+    allJumpTargets team =
+      iter S.empty (nextJumpTargets team startPos)
+      where
+        iter set [] = set
+        iter set (pos:poss) =
+          if S.member pos set
+          then iter set poss
+          else iter (S.insert pos set) (nextJumpTargets team pos ++ poss)
+    finalRuleOptsFilters team =
+      setFinalFilter movingBackwards (filterForward startPos team) .
+      setFinalFilter invading (filterNonInvading team (getGrid halmaBoard))
+    continualRuleOptsFilters team pos =
+      setContinualFilter movingBackwards (filterForward pos team) .
+      setContinualFilter invading (filterNonInvading team (getGrid halmaBoard))
+    setFinalFilter ruleRestriction filterRule positions =
+      case ruleRestriction ruleOptions of
+        Allowed -> positions
+        Temporarily -> filterRule positions
+        Forbidden -> filterRule positions
+    setContinualFilter ruleRestriction filterRule positions =
+      case ruleRestriction ruleOptions of
+        Allowed -> positions
+        Temporarily -> positions
+        Forbidden -> filterRule positions
 
 -- | Computes all possible moves for a piece.
 possibleMoves
@@ -114,5 +126,8 @@ possibleMoves ruleOptions halmaBoard startPos =
 -- | Has a team all of it's pieces in the end zone?
 hasFinished :: HalmaBoard size -> Team -> Bool
 hasFinished halmaBoard team =
-  all ((==) (Just team) . flip lookupHalmaBoard halmaBoard)
-      (endFields (getGrid halmaBoard) team)
+  all hasPieceFromTheRightTeam (endFields (getGrid halmaBoard) team)
+  where
+    hasTheRightTeam piece = pieceTeam piece == team
+    hasPieceFromTheRightTeam pos =
+      maybe False hasTheRightTeam (lookupHalmaBoard pos halmaBoard)

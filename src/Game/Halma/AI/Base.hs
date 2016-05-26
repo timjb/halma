@@ -1,18 +1,18 @@
 module Game.Halma.AI.Base
   ( Move
   , outcome
-  , Rating(..)
-  , teamRating
+  , Rating (..)
+  , rateTeam
   , allOwnPieces
   , allLegalMoves
   ) where
 
-import Math.Geometry.Grid
-import qualified Data.Map.Strict as M
-import Data.List (sort)
 import Game.Halma.Board
 import Game.Halma.Rules
 
+import Data.List (sort)
+import Math.Geometry.Grid
+import qualified Data.Map.Strict as M
 
 type Move size = (Index (HalmaGrid size), Index (HalmaGrid size))
 
@@ -22,9 +22,10 @@ outcome board (source, destination) =
     Left err -> error $ "cannot compute outcome: " ++ err
     Right board' -> board'
 
-data Rating = WinIn Int
-            | Rating Float
-            | LossIn Int
+data Rating
+  = WinIn Int
+  | Rating Float
+  | LossIn Int
   deriving (Show, Eq)
 
 instance Ord Rating where
@@ -40,24 +41,26 @@ instance Bounded Rating where
   maxBound = WinIn 0
   minBound = LossIn 0
 
-
-teamRating :: Team -> HalmaBoard size -> Rating
-teamRating team board  | hasFinished board team  = WinIn 0
-                       | otherwise  = Rating . negate . sum $
-                           zipWith (*) pieceWeightingList (sort distances)
-  where distances = map (fromIntegral . distance grid (endCorner grid team)) $
-                        allOwnPieces board team
-        grid = getGrid board
-        pieceWeightingList = replicate 12 2 ++ [3..5]
+rateTeam :: Team -> HalmaBoard size -> Rating
+rateTeam team board
+  | hasFinished board team =
+      WinIn 0
+  | otherwise =
+      Rating . negate . sum $ zipWith (*) pieceWeightingList (sort distances)
+  where
+    grid = getGrid board
+    distanceToEndCorner = fromIntegral . distance grid (endCorner grid team)
+    distances = map distanceToEndCorner (allOwnPieces board team)
+    pieceWeightingList = replicate 12 2 ++ [3..5]
 
 allOwnPieces :: HalmaBoard size -> Team -> [Index (HalmaGrid size)]
-allOwnPieces board team = 
-  map fst $ filter ((team ==) . snd) $
-              M.assocs (toMap board)
+allOwnPieces board team =
+  map fst $ filter (isMyPiece . snd) $ M.assocs (toMap board)
+  where
+    isMyPiece piece = pieceTeam piece == team
 
 allLegalMoves :: RuleOptions -> HalmaBoard size -> Team -> [Move size]
-allLegalMoves opts board team =
-  concatMap
-    ( \piecePos -> [(piecePos, destination)
-                    | destination <- possibleMoves opts board piecePos] )
-    $ allOwnPieces board team
+allLegalMoves opts board team = do
+  piecePos <- allOwnPieces board team
+  destination <- possibleMoves opts board piecePos
+  return (piecePos, destination)

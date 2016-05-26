@@ -1,5 +1,10 @@
 # Change Log
 
+## HEAD
+
+- The pieces on the board are now identifiable by a number from 1 to 15 (for each team)
+- Rename `teamRating` to `rateTeam` in `Game.Halma.AI.Base`
+
 ## 0.2.0.1 (2015-07-22)
 
 - Relax upper bounds: Allow mvc-1.1
