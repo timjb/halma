@@ -4,4 +4,7 @@ packages:
 extra-deps:
 - grid-7.8.5
 - mvc-1.1.2
-resolver: lts-5.5
+- telegram-api-0.4.2.0
+- servant-0.7
+- servant-client-0.7
+resolver: lts-5.17
