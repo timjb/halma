@@ -17,7 +17,7 @@ import Test.Framework
 import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import qualified Data.Map.Strict as M
-import qualified Math.Geometry.Grid.HexagonalInternal as HI
+import qualified Math.Geometry.Grid.HexagonalInternal as HexGrid
 
 testRowsInDirection :: Assertion
 testRowsInDirection =
@@ -62,15 +62,18 @@ assertOneOf :: (Eq a, Show a) => a -> [a] -> Assertion
 assertOneOf actual validResults = assertBool msg (actual `elem` validResults)
   where msg = "Expected '" ++ show actual ++ "' to be one of '" ++ show validResults ++ "'"
 
-numbersCorrect :: HalmaGrid size -> [Maybe Team] -> Bool
+numbersCorrect :: HalmaGrid size -> [Maybe Piece] -> Bool
 numbersCorrect halmaGrid = go 15 15 (numberOfFields halmaGrid - 2*15)
   where
-    go :: Int -> Int -> Int -> [Maybe Team] -> Bool
+    go :: Int -> Int -> Int -> [Maybe Piece] -> Bool
     go 0 0 0 [] = True
-    go !n !s !e (Just North : rs) = go (n-1) s e rs
-    go !n !s !e (Just South : rs) = go n (s-1) e rs
-    go !n !s !e (Nothing : rs) = go n s (e-1) rs
-    go _ _ _ _ = False
+    go _ _ _ [] = False
+    go !n !s !e (piece : pieces) =
+      case pieceTeam <$> piece of
+        Just North -> go (n-1) s e pieces
+        Just South -> go n (s-1) e pieces
+        Just _otherTeam -> False
+        Nothing -> go n s (e-1) pieces
 
 testInitialBoard :: Assertion
 testInitialBoard = ass SmallGrid >> ass LargeGrid
@@ -78,9 +81,7 @@ testInitialBoard = ass SmallGrid >> ass LargeGrid
     ass hg = assertBool "Expected 15 pieces of team north and south" $ numbersCorrect hg (pieces hg)
     pieces hg = map (\p -> lookupHalmaBoard p (initialBoard hg twoPlayers)) (indices hg)
     twoPlayers :: Team -> Bool
-    twoPlayers North = True
-    twoPlayers South = True
-    twoPlayers _ = False
+    twoPlayers team = team `elem` [North, South]
 
 arbitraryPerm :: [a] -> Gen [a]
 arbitraryPerm xs =
@@ -93,8 +94,12 @@ genBoard halmaGrid = do
   let (northTeam, restPieces) = splitAt 15 pieces
       southTeam = take 15 restPieces
   return $ fromJust $ fromMap halmaGrid $ M.fromList $
-    map (flip (,) North) northTeam ++
-    map (flip (,) South) southTeam
+    mkPieces North northTeam ++
+    mkPieces South southTeam
+  where
+    mkPieces team positions =
+      let mkPiece pos ix = (pos, Piece { pieceNumber = ix, pieceTeam = team})
+      in zipWith mkPiece positions [1..15]
 
 instance Arbitrary (HalmaBoard 'S) where
   arbitrary = genBoard SmallGrid
