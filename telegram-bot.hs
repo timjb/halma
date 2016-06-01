@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -8,129 +7,21 @@
 
 module Main where
 
-import Game.Halma.Board
-import Game.Halma.Board.Draw (drawBoard')
-import Game.Halma.Configuration (Configuration (..), NumberOfPlayers (..))
-import Game.Halma.State (HalmaState (..), newGame)
+import Game.Halma.State (HalmaState (..))
+import Game.Halma.TelegramBot.BotM
+import Game.Halma.TelegramBot.DrawBoard
+import Game.Halma.TelegramBot.Types
 
-import Data.Char (isAlphaNum, isSpace)
-import Data.Colour.SRGB (sRGB24read)
 import Data.Maybe (catMaybes)
 import Data.Monoid ((<>))
-import Diagrams.Backend.Cairo (Cairo, renderCairo)
-import Diagrams.Prelude ((#))
-import Diagrams.Query (resetValue)
-import Diagrams.Size (dims)
-import Diagrams.TwoD.Types (V2 (..))
-import Control.Monad (unless, guard)
-import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
+import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Reader.Class (MonadReader (..))
 import Control.Monad.State.Class (MonadState (..), gets, modify)
-import Control.Monad.Trans.Reader (ReaderT, runReaderT)
-import Control.Monad.Trans.State (StateT, evalStateT)
-import Network.HTTP.Client (Manager, newManager)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Servant.Common.Req (ServantError)
-import System.Directory (getTemporaryDirectory)
 import System.Environment (getArgs)
-import System.IO (hClose, hPrint, hPutStrLn, stderr)
-import System.IO.Temp (withTempFile)
+import System.IO (hPutStrLn, stderr)
 import qualified Data.Text as T
-import qualified Diagrams.Prelude as D
 import qualified Web.Telegram.API.Bot as TG
-
-data Player
-  = AIPlayer
-  | TelegramPlayer TG.User
-  deriving (Show)
-
-showPlayer :: Player -> T.Text
-showPlayer player =
-  case player of
-    AIPlayer -> "AI"
-    TelegramPlayer user ->
-      case TG.user_username user of
-        Just username -> username
-        Nothing ->
-          TG.user_first_name user <>
-          maybe "" (" " <>) (TG.user_last_name user)
-
-newtype MatchResult
-  = MatchResult
-  { numberOfMoves :: [(Player, Int)]
-  } deriving (Show)
-
-data Match
-  = Match
-  { matchPlayers :: [Player]
-  , matchHistory :: [MatchResult]
-  , matchCurrentGame :: Maybe (HalmaState 'S)
-  } deriving (Show)
-
-newMatch :: [Player] -> Either T.Text Match
-newMatch players =
-  let
-    config =
-      case length players of
-        i | i < 2 -> Left "can't start a match with at least two players!"
-        2 -> Right (Configuration SmallGrid TwoPlayers)
-        3 -> Right (Configuration SmallGrid ThreePlayers)
-        _ -> Left "can't start a match with more than three players!"
-  in
-    mkMatch <$> config
-  where
-    mkMatch config =
-      Match
-      { matchPlayers = players
-      , matchHistory = []
-      , matchCurrentGame = Just (newGame config)
-      }
-
-data MatchState
-  = NoMatch
-  | GatheringPlayers [Player]
-  | MatchRunning Match
-  deriving (Show)
-
-type ChatId = T.Text
-
-data BotState
-  = BotState
-  { bsChatId :: ChatId
-  , bsNextId :: Int
-  , bsToken :: TG.Token
-  , bsMatchState :: MatchState
-  } deriving (Show)
-
-initialBotState :: T.Text -> TG.Token -> BotState
-initialBotState chatId token =
-  BotState
-  { bsChatId = chatId
-  , bsToken = token
-  , bsNextId = 0
-  , bsMatchState = NoMatch
-  }
-
-newtype BotM a
-  = BotM
-  { unBotM :: ReaderT Manager (StateT BotState IO) a
-  } deriving
-    ( Functor, Applicative, Monad
-    , MonadIO, MonadThrow, MonadCatch, MonadMask
-    , MonadState BotState, MonadReader Manager
-    )
-
-evalBotM :: BotM a -> BotState -> IO a
-evalBotM action initialState = do
-  manager <- newManager tlsManagerSettings
-  evalStateT (runReaderT (unBotM action) manager) initialState
-
-runReq :: (TG.Token -> Manager -> IO a) -> BotM a
-runReq reqAction = do
-  manager <- ask
-  token <- gets bsToken
-  liftIO (reqAction token manager)
 
 main :: IO ()
 main =
@@ -148,10 +39,11 @@ ensureIsPrefixOf prefix str =
 getUpdates :: BotM (Either ServantError [TG.Update])
 getUpdates = do
   nid <- gets bsNextId
-  let limit = 100
-      timeout = 10
-      updateReq =
-        \token -> TG.getUpdates token (Just nid) (Just limit) (Just timeout)
+  let
+    limit = 100
+    timeout = 10
+    updateReq =
+      \token -> TG.getUpdates token (Just nid) (Just limit) (Just timeout)
   runReq updateReq >>= \case
     Left err -> return (Left err)
     Right (TG.UpdatesResponse updates) -> do
@@ -159,76 +51,15 @@ getUpdates = do
         let nid' = 1 + maximum (map TG.update_id updates)
         modify (\s -> s { bsNextId = nid' })
       return (Right updates)
-
-printError :: (MonadIO m, Show a) => a -> m ()
-printError val = liftIO (hPrint stderr val)
-
-logErrors :: BotM (Either ServantError a) -> BotM ()
-logErrors action =
-  action >>= \case
-    Left err -> printError err
-    Right _res -> return ()
   
-sendCurrentBoard :: HalmaState 'S -> BotM ()
+sendCurrentBoard :: HalmaState size -> BotM ()
 sendCurrentBoard halmaState =
-  withTempPngFilePath $ \path -> do
+  withRenderedBoardInPngFile (hsBoard halmaState) $ \path -> do
     chatId <- gets bsChatId
-    let board = hsBoard halmaState
-        dia = drawBoard' (getGrid board) (drawField board)
-        bounds = dims (V2 1000 1000)
-    liftIO $ renderCairo path bounds (resetValue dia)
-    let fileUpload = TG.localFileUpload path
-        photoReq = TG.uploadPhotoRequest chatId fileUpload
+    let
+      fileUpload = TG.localFileUpload path
+      photoReq = TG.uploadPhotoRequest chatId fileUpload
     logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
-  where
-    withTempPngFilePath handler = do
-      systemTempDir <- liftIO getTemporaryDirectory
-      withTempFile systemTempDir "halma.png" $ \filePath fileHandle -> do
-        liftIO (hClose fileHandle)
-        handler filePath
-    -- colors from http://clrs.cc/
-    botTeamColours :: Team -> D.Colour Double
-    botTeamColours =
-      \case
-        North     -> sRGB24read "#0074D9" -- blue
-        Northeast -> sRGB24read "#2ECC40" -- green
-        Northwest -> sRGB24read "#B10DC9" -- purple
-        South     -> sRGB24read "#FF4136" -- red
-        Southeast -> sRGB24read "#111111" -- black
-        Southwest -> sRGB24read "#FF851B" -- orange
-    drawPiece
-      :: Piece -> D.Diagram Cairo
-    drawPiece piece =
-      let
-        c = botTeamColours (pieceTeam piece)
-        symbol =
-          case pieceNumber piece of
-            1 -> '1'
-            2 -> '2'
-            3 -> '3'
-            4 -> '4'
-            5 -> '5'
-            6 -> '6'
-            7 -> '7'
-            8 -> '8'
-            9 -> '9'
-            10 -> 'a'
-            11 -> 'b'
-            12 -> 'c'
-            13 -> 'd'
-            14 -> 'e'
-            15 -> 'f'
-            i -> error ("unexpected piece number: " ++ show i)
-        text =
-          D.text [symbol] # D.fc D.white #
-          D.fontSize (D.output 20) # D.font "Arial"
-        circle = D.circle 0.25 # D.fc c # D.lc (D.darken 0.5 c)
-      in
-        text `D.atop` circle
-    drawField
-      ::  HalmaBoard 'S -> (Int, Int) -> D.Diagram Cairo
-    drawField board field =
-      maybe mempty drawPiece $ lookupHalmaBoard field board
 
 type Msg = ChatId -> TG.SendMessageRequest
 
@@ -258,24 +89,6 @@ helpMsg =
     "/newmatch — starts a new match between two or three players\n" <>
     "/newround — start a new game round\n" <>
     "/help — display this message"
-
-data CmdCall
-  = CmdCall
-  { cmdCallName :: T.Text
-  , cmdCallArgs :: Maybe T.Text
-  } deriving (Show, Eq)
-
-parseCmdCall :: T.Text -> Maybe CmdCall
-parseCmdCall str = do
-  guard $ not (T.null str)
-  guard $ T.head str == '/'
-  let rest = T.tail str
-      isCmdChar c = isAlphaNum c || c `elem` ("_-" :: String)
-      (cmdName, rest') = T.span isCmdChar rest
-  guard $ not (T.null cmdName)
-  let rest'' = T.dropWhile isSpace rest'
-      args = if T.null rest'' then Nothing else Just rest''
-  pure $ CmdCall { cmdCallName = cmdName, cmdCallArgs = args }
 
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
 handleCommand cmdCall =
