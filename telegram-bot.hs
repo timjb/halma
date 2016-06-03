@@ -105,7 +105,10 @@ helpMsg =
     "You can control HalmaBot by sending these commands:\n" <>
     "/newmatch — starts a new match between two or three players\n" <>
     "/newround — start a new game round\n" <>
-    "/help — display this message"
+    "/help — display this message\n\n" <>
+    "Here's how move commands are structured:\n" <>
+    "First there comes a letter in the range A-O (the piece you want to move), then the number of the row you want to move the piece to. If there are multiple possible target positions on the row, you will be asked which one you mean.\n" <>
+    "For example: a11 tells HalmaBot to move the piece label 'a' to number 11."
 
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
 handleCommand cmdCall =
@@ -178,8 +181,6 @@ handleMoveCmd match game moveCmd fullMsg = do
               pure $ Just $ do
                 modify $ \botState ->
                   botState { bsMatchState = MatchRunning match' }
-      --modify $ \botState ->
-        --botState { bsMatchState = MatchRunning (newMatch players) }
 
 handleTextMsg
   :: T.Text

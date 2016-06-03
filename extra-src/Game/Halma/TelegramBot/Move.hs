@@ -125,14 +125,14 @@ data MoveCmd
 
 showMoveCmd :: MoveCmd -> T.Text
 showMoveCmd moveCmd =
-  showPieceNumber (movePieceNumber moveCmd) <> "-" <>
+  showPieceNumber (movePieceNumber moveCmd) <>
   T.pack (show (unRowNumber (moveTargetRow moveCmd))) <>
   maybe "" showTargetModifier (moveTargetModifier moveCmd)
 
 moveCmdParser :: P.Parsec P.Dec T.Text MoveCmd
 moveCmdParser =
   MoveCmd
-    <$> (pieceNumberParser <* P.space <* P.char '-' <* P.space)
+    <$> (pieceNumberParser <* P.space)
     <*> targetRowParser
     <*> P.optional (P.try (P.space *> targetModifierParser))
   where
