@@ -31,7 +31,7 @@ beingSomewhatGreedy x y =
       let greedyness = 0.1
       in Rating (greedyness*a + (1-greedyness)*b)
 
-aiMove :: RuleOptions -> HalmaBoard size -> Team -> Move size
+aiMove :: RuleOptions -> HalmaBoard size -> Team -> Move
 aiMove opts board team =
   if null legalMoves then
     error "There is no legal move."

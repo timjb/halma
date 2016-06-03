@@ -2,8 +2,10 @@
 
 ## HEAD
 
-- The pieces on the board are now identifiable by a number from 1 to 15 (for each team)
+- The pieces on the board are now identifiable by a number from 1 to 15 (for each team); added `Piece` datatype
 - Rename `teamRating` to `rateTeam` in `Game.Halma.AI.Base`
+- Introduce new type `Move` representing moves on the board
+- changed call signature of `movePiece`
 
 ## 0.2.0.1 (2015-07-22)
 

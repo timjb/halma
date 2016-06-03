@@ -18,6 +18,7 @@ module Game.Halma.Board
   , Piece (..)
   , HalmaBoard, getGrid, toMap, fromMap
   , lookupHalmaBoard
+  , Move (..)
   , movePiece
   , initialBoard
   ) where
@@ -226,14 +227,20 @@ fromMap halmaGrid m =
 lookupHalmaBoard :: (Int, Int) -> HalmaBoard size -> Maybe Piece
 lookupHalmaBoard p = M.lookup p . toMap
 
+-- | A move of piece on a (Halma) board.
+data Move
+  = Move
+  { moveFrom :: (Int, Int) -- ^ start position
+  , moveTo :: (Int, Int) -- ^ end position, must be different from start position
+  } deriving (Show, Eq)
+
 -- | Move a piece on the halma board. This function does not check whether the
 -- move is valid according to the Halma rules.
 movePiece
-  :: (Int, Int) -- ^ start position
-  -> (Int, Int) -- ^ end position
+  :: Move
   -> HalmaBoard size
   -> Either String (HalmaBoard size)
-movePiece startPos endPos (HalmaBoard halmaGrid m) =
+movePiece (Move { moveFrom = startPos, moveTo = endPos }) (HalmaBoard halmaGrid m) =
   case M.lookup startPos m of
     Nothing -> Left "cannot make move: start position is empty"
     Just piece ->

@@ -80,13 +80,16 @@ Executable halma-bot
                        http-client,
                        http-client-tls,
                        data-default,
+                       megaparsec,
                        mtl,
                        exceptions,
                        temporary,
                        diagrams-lib,
                        diagrams-cairo,
                        directory,
-                       colour
+                       colour,
+                       semigroups,
+                       containers
   default-language:    Haskell2010
   Hs-source-dirs:      extra-src .
   main-is:             telegram-bot.hs

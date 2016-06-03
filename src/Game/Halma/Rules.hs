@@ -11,6 +11,7 @@ import Control.Monad (guard)
 import Data.Default
 import Data.Function (on)
 import Data.Maybe (catMaybes, isJust, isNothing)
+import Data.Monoid ((<>))
 import Math.Geometry.Grid
 import qualified Data.Set as S
 import qualified Math.Geometry.Grid.HexagonalInternal as HexGrid
@@ -119,9 +120,7 @@ possibleMoves
   -> HalmaBoard size
   -> (Int, Int)
   -> [(Int, Int)]
-possibleMoves ruleOptions halmaBoard startPos =
-  possibleStepMoves ruleOptions halmaBoard startPos ++
-  possibleJumpMoves ruleOptions halmaBoard startPos
+possibleMoves = possibleStepMoves <> possibleJumpMoves
 
 -- | Has a team all of it's pieces in the end zone?
 hasFinished :: HalmaBoard size -> Team -> Bool

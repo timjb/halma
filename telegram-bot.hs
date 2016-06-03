@@ -1,17 +1,22 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Main where
 
+import Game.Halma.Board
+import Game.Halma.Configuration
 import Game.Halma.State (HalmaState (..))
 import Game.Halma.TelegramBot.BotM
+import Game.Halma.TelegramBot.Cmd
 import Game.Halma.TelegramBot.DrawBoard
+import Game.Halma.TelegramBot.Move
 import Game.Halma.TelegramBot.Types
+import Game.TurnCounter
 
+import Data.Foldable (toList)
 import Data.Maybe (catMaybes)
 import Data.Monoid ((<>))
 import Control.Monad (unless)
@@ -36,6 +41,28 @@ ensureIsPrefixOf :: T.Text -> T.Text -> T.Text
 ensureIsPrefixOf prefix str =
   if prefix `T.isPrefixOf` str then str else prefix <> str
 
+mkButton :: T.Text -> TG.KeyboardButton
+mkButton text =
+  TG.KeyboardButton
+    { TG.kb_text = text
+    , TG.kb_request_contact = Nothing
+    , TG.kb_request_location = Nothing
+    }
+
+mkKeyboard :: [[T.Text]] -> TG.ReplyKeyboard
+mkKeyboard buttonLabels =
+  TG.ReplyKeyboardMarkup
+    { TG.reply_keyboard = fmap mkButton <$> buttonLabels
+    , TG.reply_resize_keyboard = Just True
+    , TG.reply_one_time_keyboard = Just True
+    , TG.reply_selective = Just False
+    }
+
+textMsgWithKeyboard :: T.Text -> TG.ReplyKeyboard -> Msg
+textMsgWithKeyboard text keyboard chatId =
+  (TG.sendMessageRequest chatId text)
+  { TG.message_reply_markup = Just keyboard }
+
 getUpdates :: BotM (Either ServantError [TG.Update])
 getUpdates = do
   nid <- gets bsNextId
@@ -52,7 +79,7 @@ getUpdates = do
         modify (\s -> s { bsNextId = nid' })
       return (Right updates)
   
-sendCurrentBoard :: HalmaState size -> BotM ()
+sendCurrentBoard :: HalmaState size Player -> BotM ()
 sendCurrentBoard halmaState =
   withRenderedBoardInPngFile (hsBoard halmaState) $ \path -> do
     chatId <- gets bsChatId
@@ -60,16 +87,6 @@ sendCurrentBoard halmaState =
       fileUpload = TG.localFileUpload path
       photoReq = TG.uploadPhotoRequest chatId fileUpload
     logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
-
-type Msg = ChatId -> TG.SendMessageRequest
-
-textMsg :: T.Text -> Msg
-textMsg text chatId = TG.sendMessageRequest chatId text
-
-sendMsg :: Msg -> BotM ()
-sendMsg createMsg = do
-  chatId <- gets bsChatId
-  logErrors $ runReq $ \token -> TG.sendMessage token (createMsg chatId)
 
 welcomeMsg :: Msg
 welcomeMsg chatId =
@@ -100,17 +117,80 @@ handleCommand cmdCall =
       pure $ Just (sendMsg welcomeMsg)
     CmdCall { cmdCallName = "newmatch" } ->
       pure $ Just $ modify $ \botState ->
-        botState { bsMatchState = GatheringPlayers [] }
+        botState { bsMatchState = GatheringPlayers NoPlayers }
     CmdCall { cmdCallName = "newround" } ->
       pure $ Just $ sendMsg $ textMsg "todo: newgame"
     _ -> pure Nothing
 
-handleTextMsg :: T.Text -> TG.Message -> BotM (Maybe (BotM ()))
+handleMoveCmd
+  :: Match size
+  -> HalmaState size Player
+  -> MoveCmd
+  -> TG.Message
+  -> BotM (Maybe (BotM ()))
+handleMoveCmd match game moveCmd fullMsg =
+  case TG.from fullMsg of
+    Nothing -> do
+      sendMsg $ textMsg $
+        "can't identify sender of move command " <> showMoveCmd moveCmd <> "!"
+      pure Nothing
+    Just sender -> do
+      let
+        (team, player) = currentPlayer (hsTurnCounter game)
+        checkResult =
+          checkMoveCmd (hsRuleOptions game) (hsBoard game) team moveCmd
+      case checkResult of
+        _ | player /= TelegramPlayer sender -> do
+          sendMsg $ textMsg $
+            "Hey " <> showUser sender <> ", it's not your turn, it's " <>
+            showPlayer player <> "'s!"
+          pure Nothing
+        MoveImpossible reason -> do
+          sendMsg $ textMsg $
+            "This move is not possible: " <> T.pack reason
+          pure Nothing
+        MoveSuggestions suggestions -> do
+          let
+            text =
+              showUser sender <> ", the move command you sent is ambiguous. " <>
+              "Please send another move command or choose one in the " <>
+              "following list."
+            suggestionToButton (modifier, _move) =
+              let moveCmd' = moveCmd { moveTargetModifier = Just modifier }
+              in [showMoveCmd moveCmd']
+            keyboard = mkKeyboard (suggestionToButton <$> toList suggestions)
+          sendMsg $ textMsgWithKeyboard text keyboard
+          pure Nothing
+        MoveFoundUnique move ->
+          case movePiece move (hsBoard game) of
+            Left err -> do
+              printError err
+              pure Nothing
+            Right board' -> do
+              let
+                game' =
+                  game
+                    { hsBoard = board'
+                    , hsTurnCounter = nextTurn (hsTurnCounter game)
+                    }
+                match' = match { matchCurrentGame = Just game' }
+              pure $ Just $ do
+                modify $ \botState ->
+                  botState { bsMatchState = MatchRunning match' }
+      --modify $ \botState ->
+        --botState { bsMatchState = MatchRunning (newMatch players) }
+
+handleTextMsg
+  :: T.Text
+  -> TG.Message
+  -> BotM (Maybe (BotM ()))
 handleTextMsg text fullMsg = do
   matchState <- gets bsMatchState
   case (matchState, text) of
     (_, parseCmdCall -> Just cmdCall) ->
       handleCommand cmdCall
+    ( MatchRunning (match@(Match { matchCurrentGame = Just game })), parseMoveCmd -> Right moveCmd) ->
+      handleMoveCmd match game moveCmd fullMsg
     (GatheringPlayers players, "me") ->
       pure $ Just (addTelegramPlayer players)
     (GatheringPlayers players, "yes, me") ->
@@ -119,30 +199,40 @@ handleTextMsg text fullMsg = do
       pure $ Just (addAIPlayer players)
     (GatheringPlayers players, "yes, an AI") ->
       pure $ Just (addAIPlayer players)
-    (GatheringPlayers players, "no") ->
-      pure $ Just (startMatch players)
+    (GatheringPlayers (EnoughPlayers config), "no") ->
+      pure $ Just (startMatch config)
     _ -> pure Nothing
   where
-    addPlayer :: Player -> [Player] -> BotM ()
-    addPlayer player players =
+    addPlayer :: Player -> PlayersSoFar Player -> BotM ()
+    addPlayer new playersSoFar = do
       let
-        players' = players ++ [player]
-        isFull = length players' == 3
-      in do
-        botState <- get
-        if isFull then
-          case newMatch players' of
-            Left err -> do
-              liftIO $ printError $
-                "could not create a new match with 3 players! " <>
-                "error message: " <> err
-            Right match ->
-              put $ botState { bsMatchState = MatchRunning match }
-        else
-          put $ botState { bsMatchState = GatheringPlayers players' }
-    addAIPlayer :: [Player] -> BotM ()
+        playersSoFar' =
+          case playersSoFar of
+            NoPlayers ->
+              OnePlayer new
+            OnePlayer a ->
+              EnoughPlayers (Configuration SmallGrid (TwoPlayers a new))
+            EnoughPlayers (Configuration grid players) ->
+              case players of
+                TwoPlayers a b ->
+                  EnoughPlayers $ Configuration grid (ThreePlayers a b new)
+                ThreePlayers a b c ->
+                  EnoughPlayers $ Configuration LargeGrid (FourPlayers a b c new)
+                FourPlayers a b c d ->
+                  EnoughPlayers $ Configuration LargeGrid (FivePlayers a b c d new)
+                FivePlayers a b c d e ->
+                  EnoughPlayers $ Configuration LargeGrid (SixPlayers a b c d e new)
+                SixPlayers {} ->
+                  EnoughPlayers $ Configuration grid players
+      botState <- get
+      case playersSoFar' of
+        EnoughPlayers config@(Configuration _grid (SixPlayers {})) ->
+          put $ botState { bsMatchState = MatchRunning (newMatch config) }
+        _ ->
+          put $ botState { bsMatchState = GatheringPlayers playersSoFar' }
+    addAIPlayer :: PlayersSoFar Player -> BotM ()
     addAIPlayer = addPlayer AIPlayer
-    addTelegramPlayer :: [Player] -> BotM ()
+    addTelegramPlayer :: PlayersSoFar Player -> BotM ()
     addTelegramPlayer players =
       case TG.from fullMsg of
         Nothing ->
@@ -150,57 +240,62 @@ handleTextMsg text fullMsg = do
         Just user ->
           addPlayer (TelegramPlayer user) players
     startMatch players =
-      case newMatch players of
-        Left err -> sendMsg (textMsg err)
-        Right match -> 
-          modify $ \botState ->
-            botState { bsMatchState = MatchRunning match }
+      modify $ \botState ->
+        botState { bsMatchState = MatchRunning (newMatch players) }
 
-sendGatheringPlayers :: [Player] -> BotM ()
-sendGatheringPlayers players = 
-  case players of
-    [] ->
+sendGatheringPlayers :: PlayersSoFar Player -> BotM ()
+sendGatheringPlayers playersSoFar = 
+  case playersSoFar of
+    NoPlayers ->
       sendMsg $ textMsgWithKeyboard
         "Starting a new match! Who is the first player?"
         meKeyboard
-    [firstPlayer] ->
+    OnePlayer firstPlayer ->
       let
         text =
           "The first player is " <> showPlayer firstPlayer <> ".\n" <>
           "Who is the second player?"
       in
         sendMsg (textMsgWithKeyboard text meKeyboard)
-    [firstPlayer,secondPlayer] ->
+    EnoughPlayers (Configuration _grid players) -> do
+      (count, nextOrdinal) <-
+        case players of
+          TwoPlayers {}   -> pure ("two", "third")
+          ThreePlayers {} -> pure ("three", "fourth")
+          FourPlayers {}  -> pure ("four", "fifth")
+          FivePlayers {}  -> pure ("five", "sixth")
+          SixPlayers {} ->
+            fail "unexpected state: gathering players although there are already six!"
       let
         text =
-          "The first two players are " <> showPlayer firstPlayer <>
-          " and " <> showPlayer secondPlayer <> ".\n" <>
-          "Is there a third player?"
-      in
-        sendMsg (textMsgWithKeyboard text anotherPlayerKeyboard)
-    _ ->
-      liftIO $ printError $
-        "unexpected number of players: " <> T.pack (show (length players))
+          "The first " <> count <> " players are " <>
+          prettyList (map showPlayer (toList players)) <> ".\n" <>
+          "Is there a " <> nextOrdinal <> " player?"
+      sendMsg (textMsgWithKeyboard text anotherPlayerKeyboard)
   where
-    button txt =
-      TG.KeyboardButton
-      { TG.kb_text = txt
-      , TG.kb_request_contact = Nothing
-      , TG.kb_request_location = Nothing
-      }
-    mkKeyboard buttons =
-      TG.ReplyKeyboardMarkup
-      { TG.reply_keyboard = buttons
-      , TG.reply_resize_keyboard = Just True
-      , TG.reply_one_time_keyboard = Just True
-      , TG.reply_selective = Just False
-      }
-    meKeyboard = mkKeyboard [[button "me"], [button "an AI"]]
+    prettyList :: [T.Text] -> T.Text
+    prettyList xs =
+      case xs of
+        [] -> "<empty list>"
+        [x] -> x
+        _ -> T.intercalate ", " (init xs) <> " and " <> last xs
+    meKeyboard = mkKeyboard [["me"], ["an AI"]]
     anotherPlayerKeyboard =
-      mkKeyboard [[button "yes, me"], [button "yes, an AI"], [button "no"]]
-    textMsgWithKeyboard text keyboard chatId =
-      (TG.sendMessageRequest chatId text)
-      { TG.message_reply_markup = Just keyboard }
+      mkKeyboard [["yes, me"], ["yes, an AI"], ["no"]]
+
+mkAIMove :: HalmaState size Player -> BotM ()
+mkAIMove _game = fail "mkAIMove not implemented yet!"
+
+sendGameState :: HalmaState size Player -> BotM ()
+sendGameState game = do
+  sendCurrentBoard game
+  let
+    (_dir, player) = currentPlayer (hsTurnCounter game)
+  case player of
+    AIPlayer -> mkAIMove game
+    TelegramPlayer user ->
+      sendMsg $ textMsg $
+        showUser user <> " it's your turn!"
 
 sendMatchState :: BotM ()
 sendMatchState = do
@@ -216,8 +311,7 @@ sendMatchState = do
         Nothing ->
           sendMsg $ textMsg $
             "Start a new round with /newround"
-        Just game ->
-          sendCurrentBoard game
+        Just game -> sendGameState game
 
 halmaBot :: BotM ()
 halmaBot = do

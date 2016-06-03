@@ -14,11 +14,9 @@ import Data.List (sort)
 import Math.Geometry.Grid
 import qualified Data.Map.Strict as M
 
-type Move size = (Index (HalmaGrid size), Index (HalmaGrid size))
-
-outcome :: HalmaBoard size -> Move size -> HalmaBoard size
-outcome board (source, destination) =
-  case movePiece source destination board of
+outcome :: HalmaBoard size -> Move -> HalmaBoard size
+outcome board move =
+  case movePiece move board of
     Left err -> error $ "cannot compute outcome: " ++ err
     Right board' -> board'
 
@@ -59,8 +57,8 @@ allOwnPieces board team =
   where
     isMyPiece piece = pieceTeam piece == team
 
-allLegalMoves :: RuleOptions -> HalmaBoard size -> Team -> [Move size]
+allLegalMoves :: RuleOptions -> HalmaBoard size -> Team -> [Move]
 allLegalMoves opts board team = do
   piecePos <- allOwnPieces board team
-  destination <- possibleMoves opts board piecePos
-  return (piecePos, destination)
+  endPos <- possibleMoves opts board piecePos
+  return (Move { moveFrom = piecePos, moveTo = endPos })

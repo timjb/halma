@@ -5,6 +5,9 @@ module Game.Halma.TelegramBot.BotM
   ( BotM
   , evalBotM
   , runReq
+  , Msg
+  , textMsg
+  , sendMsg
   , printError
   , logErrors
   ) where
@@ -21,6 +24,7 @@ import Network.HTTP.Client (Manager, newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Servant.Common.Req (ServantError)
 import System.IO (hPrint, stderr)
+import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
 newtype BotM a
@@ -42,6 +46,16 @@ runReq reqAction = do
   manager <- ask
   token <- gets bsToken
   liftIO (reqAction token manager)
+
+type Msg = ChatId -> TG.SendMessageRequest
+
+textMsg :: T.Text -> Msg
+textMsg text chatId = TG.sendMessageRequest chatId text
+
+sendMsg :: Msg -> BotM ()
+sendMsg createMsg = do
+  chatId <- gets bsChatId
+  logErrors $ runReq $ \token -> TG.sendMessage token (createMsg chatId)
 
 printError :: (MonadIO m, Show a) => a -> m ()
 printError val = liftIO (hPrint stderr val)
