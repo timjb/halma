@@ -4,6 +4,8 @@
 module Game.Halma.TelegramBot.Move
   ( TargetModifier
   , showTargetModifier
+  , PieceNumber
+  , showPieceNumber
   , MoveCmd (..)
   , showMoveCmd
   , parseMoveCmd
@@ -14,14 +16,13 @@ module Game.Halma.TelegramBot.Move
 import Game.Halma.Board
 import Game.Halma.Rules
 
-import Control.Monad (when)
 import Data.Bifunctor (first)
+import Data.Char (chr, ord, toLower)
 import Data.List.NonEmpty (NonEmpty (..), sortBy, toList)
 import Data.Monoid ((<>))
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
 import Data.Word (Word8)
-import Numeric (showHex)
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Text.Megaparsec as P
@@ -68,6 +69,31 @@ tagWithTargetModifier untagged =
       else
         TargetModifier (i+1)
 
+type PieceNumber = Word8
+
+pieceNumberToChar :: PieceNumber -> Char
+pieceNumberToChar i = chr (ord 'a' + fromIntegral i - 1)
+
+pieceNumberFromChar :: Char -> Maybe PieceNumber
+pieceNumberFromChar c =
+  let
+    j = 1 + ord (toLower c) - ord 'a'
+  in if 1 <= j && j <= 15 then
+    Just (fromIntegral j)
+  else
+    Nothing
+
+showPieceNumber :: PieceNumber -> T.Text
+showPieceNumber = T.singleton . pieceNumberToChar
+
+pieceNumberParser :: P.Parsec P.Dec T.Text PieceNumber
+pieceNumberParser = do
+  c <- P.oneOf' (pieceNumberToChar <$> [1..15]) P.<?> "piece number"
+  case pieceNumberFromChar c of
+    Nothing ->
+      fail "unexpected error while parsing piece number"
+    Just i -> pure i
+
 data MoveCmd
   = MoveCmd
   { movePieceNumber :: Word8 -- ^ number between 1 and 15
@@ -77,7 +103,7 @@ data MoveCmd
 
 showMoveCmd :: MoveCmd -> T.Text
 showMoveCmd moveCmd =
-  T.pack (showHex (movePieceNumber moveCmd) "") <> "-" <>
+  showPieceNumber (movePieceNumber moveCmd) <> "-" <>
   T.pack (show (moveTargetRow moveCmd)) <>
   maybe "" showTargetModifier (moveTargetModifier moveCmd)
 
@@ -88,11 +114,6 @@ moveCmdParser =
     <*> targetRowParser
     <*> P.optional (P.try (P.space *> targetModifierParser))
   where
-    pieceNumberParser = do
-      c <- P.hexDigitChar
-      when (c == '0') $
-        fail "invalid piece number: 0"
-      return (read ['0','x',c])
     nonNegativeIntParser =
       read <$> P.some P.digitChar P.<?> "non negative integer"
     targetRowParser = nonNegativeIntParser
@@ -108,6 +129,7 @@ data CheckMoveCmdResult
   = MoveImpossible String
   | MoveFoundUnique Move
   | MoveSuggestions (NonEmpty (TargetModifier, Move))
+  deriving (Show, Eq)
 
 checkMoveCmd
   :: RuleOptions

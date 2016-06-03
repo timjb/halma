@@ -7,6 +7,7 @@ module Game.Halma.TelegramBot.DrawBoard
 
 import Game.Halma.Board
 import Game.Halma.Board.Draw
+import Game.Halma.TelegramBot.Move (showPieceNumber)
 
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -16,11 +17,11 @@ import Diagrams.Prelude ((#), (|||), (*^), (&), (.~))
 import Diagrams.Query (resetValue)
 import Diagrams.Size (dims)
 import Diagrams.TwoD.Types (V2 (..))
-import Numeric (showHex)
 import System.Directory (getTemporaryDirectory)
 import System.IO (hClose)
 import System.IO.Temp (withTempFile)
 import qualified Diagrams.Prelude as D
+import qualified Data.Text as T
 
 withRenderedBoardInPngFile
   :: (MonadIO m, MonadMask m)
@@ -76,7 +77,7 @@ drawBoardForChat board =
     drawPiece piece =
       let
         c = botTeamColours (pieceTeam piece)
-        symbol = showHex (pieceNumber piece) ""
+        symbol = T.unpack (showPieceNumber (pieceNumber piece))
         text = D.text symbol # boardFontStyle # D.fc D.white
         circle = D.circle 0.3 # D.fc c # D.lc (D.darken 0.5 c)
       in

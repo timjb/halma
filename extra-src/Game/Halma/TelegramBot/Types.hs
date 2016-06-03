@@ -93,8 +93,8 @@ data BotState
 initialBotState :: T.Text -> TG.Token -> BotState
 initialBotState chatId token =
   BotState
-  { bsChatId = chatId
-  , bsToken = token
-  , bsNextId = 0
-  , bsMatchState = NoMatch
-  }
+    { bsChatId = chatId
+    , bsToken = token
+    , bsNextId = 0
+    , bsMatchState = NoMatch
+    }
