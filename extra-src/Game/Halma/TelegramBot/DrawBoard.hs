@@ -7,7 +7,7 @@ module Game.Halma.TelegramBot.DrawBoard
 
 import Game.Halma.Board
 import Game.Halma.Board.Draw
-import Game.Halma.TelegramBot.Move (showPieceNumber)
+import Game.Halma.TelegramBot.Move
 
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -51,15 +51,18 @@ drawBoardForChat board =
   where
     dirY = D.rotateBy (1/6) D.unitX
     rowDir = dirY & D._x .~ 0
-    radiusInRows = 8 :: Int
     boardFontStyle x = x # D.fontSize (D.output 22) # D.font "Arial"
-    scale = D.position $ map rowMarker [(-radiusInRows)..radiusInRows]
+    scale = D.position $ map rowMarker [(-r)..r]
       where
-        rowMarker i = (rowPosition i, rowNumber i)
+        r = radiusInRows (getGrid board)
+        rowMarker i = (rowPosition i, rowNumberLabel i)
         rowPosition i = D.p2 $ D.unr2 $ fromIntegral i *^ rowDir
-        rowNumber j =
-          let txt = show (j + radiusInRows)
-          in D.text txt # boardFontStyle # D.fc D.gray
+        rowNumberLabel i =
+          let
+            humanRowNumber = internalToHumanRowNumber (getGrid board) i
+            txt = show (unRowNumber humanRowNumber)
+          in
+            D.text txt # boardFontStyle # D.fc D.gray
     -- colors from http://clrs.cc/
     botTeamColours :: Team -> D.Colour Double
     botTeamColours =

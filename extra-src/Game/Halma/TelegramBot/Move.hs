@@ -6,6 +6,10 @@ module Game.Halma.TelegramBot.Move
   , showTargetModifier
   , PieceNumber
   , showPieceNumber
+  , RowNumber (..)
+  , internalToHumanRowNumber
+  , humanToInternalRowNumber
+  , radiusInRows
   , MoveCmd (..)
   , showMoveCmd
   , parseMoveCmd
@@ -47,9 +51,9 @@ targetModifierParser :: P.Parsec P.Dec T.Text TargetModifier
 targetModifierParser =
   P.choice
     [ TargetModifier . negate . (+1) <$> counting 'L'
-    , TargetModifier 0 <$ P.char 'l'
+    , TargetModifier (-1) <$ P.char 'l'
     , TargetModifier 0 <$ P.char' 'c'
-    , TargetModifier 0 <$ P.char 'r'
+    , TargetModifier 1 <$ P.char 'r'
     , TargetModifier . (+1) <$> counting 'R'
     ]
   where
@@ -94,17 +98,35 @@ pieceNumberParser = do
       fail "unexpected error while parsing piece number"
     Just i -> pure i
 
+-- | Human readable (non-negative) row number
+newtype RowNumber
+  = RowNumber
+  { unRowNumber :: Int
+  } deriving (Show, Eq, Ord)
+
+radiusInRows :: HalmaGrid size -> Int
+radiusInRows grid =
+  case grid of
+    SmallGrid -> 8
+    LargeGrid -> 10
+
+humanToInternalRowNumber :: HalmaGrid size -> RowNumber -> Int
+humanToInternalRowNumber grid (RowNumber i) = i - radiusInRows grid
+
+internalToHumanRowNumber :: HalmaGrid size -> Int -> RowNumber
+internalToHumanRowNumber grid i = RowNumber (i + radiusInRows grid)
+
 data MoveCmd
   = MoveCmd
   { movePieceNumber :: Word8 -- ^ number between 1 and 15
-  , moveTargetRow :: Int
+  , moveTargetRow :: RowNumber
   , moveTargetModifier :: Maybe TargetModifier
   } deriving (Show, Eq)
 
 showMoveCmd :: MoveCmd -> T.Text
 showMoveCmd moveCmd =
   showPieceNumber (movePieceNumber moveCmd) <> "-" <>
-  T.pack (show (moveTargetRow moveCmd)) <>
+  T.pack (show (unRowNumber (moveTargetRow moveCmd))) <>
   maybe "" showTargetModifier (moveTargetModifier moveCmd)
 
 moveCmdParser :: P.Parsec P.Dec T.Text MoveCmd
@@ -115,7 +137,7 @@ moveCmdParser =
     <*> P.optional (P.try (P.space *> targetModifierParser))
   where
     nonNegativeIntParser =
-      read <$> P.some P.digitChar P.<?> "non negative integer"
+      RowNumber . read <$> P.some P.digitChar P.<?> "non negative integer"
     targetRowParser = nonNegativeIntParser
 
 parseMoveCmd :: T.Text -> Either String MoveCmd
@@ -148,11 +170,11 @@ checkMoveCmd rules board player moveCmd =
         possibleEndPositions = possibleMoves rules board startPos
         mkMoveTo endPos = Move { moveFrom = startPos, moveTo = endPos }
       in
-        case filter isInRightRow possibleEndPositions of
+        case filter isInTargetRow possibleEndPositions of
           [] ->
             MoveImpossible $
               "The selected piece can't be moved to row " ++
-              show (moveTargetRow moveCmd) ++ "!"
+              show (unRowNumber (moveTargetRow moveCmd)) ++ "!"
           [endPos] ->
             case moveTargetModifier moveCmd of
               Nothing ->
@@ -180,6 +202,7 @@ checkMoveCmd rules board player moveCmd =
         { pieceTeam = player
         , pieceNumber = movePieceNumber moveCmd
         }
-    isInRightRow (_, y) = y == moveTargetRow moveCmd
+    targetRow = humanToInternalRowNumber (getGrid board) (moveTargetRow moveCmd)
+    isInTargetRow (_x, y) = y == targetRow
     compareByXCoord (x1, _) (x2, _) = compare x1 x2
     

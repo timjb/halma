@@ -128,7 +128,8 @@ handleMoveCmd
   -> MoveCmd
   -> TG.Message
   -> BotM (Maybe (BotM ()))
-handleMoveCmd match game moveCmd fullMsg =
+handleMoveCmd match game moveCmd fullMsg = do
+  liftIO $ putStrLn $ T.unpack $ showMoveCmd moveCmd
   case TG.from fullMsg of
     Nothing -> do
       sendMsg $ textMsg $
