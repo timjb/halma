@@ -19,6 +19,7 @@ module Game.Halma.TelegramBot.Types
 
 import Game.Halma.Configuration
 import Game.Halma.State
+import Game.Halma.TelegramBot.I18n
 
 import Data.Monoid ((<>))
 import qualified Data.Text as T
@@ -84,7 +85,8 @@ type ChatId = T.Text
 
 data BotState
   = BotState
-  { bsChatId :: ChatId
+  { bsLocale :: HalmaLocale
+  , bsChatId :: ChatId
   , bsNextId :: Int
   , bsToken :: TG.Token
   , bsMatchState :: MatchState
@@ -93,7 +95,8 @@ data BotState
 initialBotState :: T.Text -> TG.Token -> BotState
 initialBotState chatId token =
   BotState
-    { bsChatId = chatId
+    { bsLocale = deHalmaLocale
+    , bsChatId = chatId
     , bsToken = token
     , bsNextId = 0
     , bsMatchState = NoMatch

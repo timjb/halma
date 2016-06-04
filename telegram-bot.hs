@@ -12,6 +12,7 @@ import Game.Halma.State (HalmaState (..))
 import Game.Halma.TelegramBot.BotM
 import Game.Halma.TelegramBot.Cmd
 import Game.Halma.TelegramBot.DrawBoard
+import Game.Halma.TelegramBot.I18n
 import Game.Halma.TelegramBot.Move
 import Game.Halma.TelegramBot.Types
 import Game.TurnCounter
@@ -88,41 +89,36 @@ sendCurrentBoard halmaState =
       photoReq = TG.uploadPhotoRequest chatId fileUpload
     logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
 
-welcomeMsg :: Msg
-welcomeMsg chatId =
-  let
-    text =
-      "Greetings from HalmaBot! This is an open-source bot written in " <>
-      "Haskell by Tim Baumann <tim@timbaumann.info>. " <>
-      "The source code is available at https://github.com/timjb/halma."
-  in
-    (TG.sendMessageRequest chatId text)
-    { TG.message_disable_web_page_preview = Just True }
-
-helpMsg :: Msg
-helpMsg =
-  textMsg $
-    "You can control HalmaBot by sending these commands:\n" <>
-    "/newmatch — starts a new match between two or three players\n" <>
-    "/newround — start a new game round\n" <>
-    "/help — display this message\n\n" <>
-    "Here's how move commands are structured:\n" <>
-    "First there comes a letter in the range A-O (the piece you want to move), then the number of the row you want to move the piece to. If there are multiple possible target positions on the row, you will be asked which one you mean.\n" <>
-    "For example: a11 tells HalmaBot to move the piece label 'a' to number 11."
-
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
 handleCommand cmdCall =
   case cmdCall of
     CmdCall { cmdCallName = "help" } -> do
-      sendMsg helpMsg
+      sendI18nMsg hlHelpMsg
       pure Nothing
-    CmdCall { cmdCallName = "start" } ->
-      pure $ Just (sendMsg welcomeMsg)
+    CmdCall { cmdCallName = "start" } -> do
+      pure $ Just $ do
+        modify $ \botState ->
+          botState { bsMatchState = NoMatch }
+        sendI18nMsg hlWelcomeMsg
+    CmdCall { cmdCallName = "setlang", cmdCallArgs = Nothing } -> do
+      sendMsg $ textMsg $
+        "/setlang expects an argument!"
+      pure Nothing
+    CmdCall { cmdCallName = "setlang", cmdCallArgs = Just arg } ->
+      case parseLocaleId arg of
+        Just localeId ->
+          pure $ Just $
+            modify $ \botState -> botState { bsLocale = localeById localeId }
+        Nothing -> do
+          sendMsg $ textMsg $
+            "Could not parse language. Must be one of the following strings: " <>
+            T.intercalate ", " (map showLocaleId allLocaleIds)
+          pure Nothing
     CmdCall { cmdCallName = "newmatch" } ->
       pure $ Just $ modify $ \botState ->
         botState { bsMatchState = GatheringPlayers NoPlayers }
     CmdCall { cmdCallName = "newround" } ->
-      pure $ Just $ sendMsg $ textMsg "todo: newgame"
+      pure $ Just $ sendMsg $ textMsg "todo: newround"
     _ -> pure Nothing
 
 handleMoveCmd
@@ -245,6 +241,11 @@ handleTextMsg text fullMsg = do
       modify $ \botState ->
         botState { bsMatchState = MatchRunning (newMatch players) }
 
+sendI18nMsg :: (HalmaLocale -> T.Text) -> BotM ()
+sendI18nMsg getText = do
+  text <- translate getText
+  sendMsg $ textMsg text -- todo: url link suppression
+
 sendGatheringPlayers :: PlayersSoFar Player -> BotM ()
 sendGatheringPlayers playersSoFar = 
   case playersSoFar of
@@ -317,7 +318,7 @@ sendMatchState = do
 
 halmaBot :: BotM ()
 halmaBot = do
-  sendMsg welcomeMsg
+  sendI18nMsg hlWelcomeMsg
   mainLoop
   where
     mainLoop :: BotM ()
