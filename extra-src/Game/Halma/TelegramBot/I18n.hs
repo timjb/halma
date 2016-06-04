@@ -31,6 +31,7 @@ enHalmaLocale =
         "You can control me by sending these commands:\n" <>
         "/newmatch — starts a new match between two or three players\n" <>
         "/newround — start a new game round\n" <>
+        "/undo — reverse your last move\n" <>
         "/setlang [" <> localesText <> "] — switch to another language\n" <>
         "/help — display this message\n\n" <>
         "Here's how move commands are structured:\n" <>
@@ -53,6 +54,7 @@ deHalmaLocale =
         "Du kannst mich durch folgende Kommandos steuern:\n" <>
         "/newmatch — startet ein neues Halma-Match\n" <>
         "/newround — startet eine neue Spielrunde in einem Match\n" <>
+        "/undo — macht den letzten Zug rückgängig\n" <>
         "/setlang [" <> localesText <> "] — wechsle die Sprache / switch to another language\n" <>
         "/help — zeigt diese Hilfe-Nachricht an\n\n" <>
         "Zuganweisungen sind folgendermaßen aufgebaut:\n" <>

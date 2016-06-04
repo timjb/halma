@@ -1,4 +1,4 @@
-module Game.Halma.State
+module Game.Halma.GUI.State
   ( HalmaState (..)
   , newGame
   ) where

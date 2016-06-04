@@ -9,7 +9,7 @@ module Main (main) where
 import Game.Halma.Board
 import Game.Halma.Board.Draw
 import Game.Halma.Configuration
-import Game.Halma.State
+import Game.Halma.GUI.State
 import Game.Halma.Rules
 import Game.TurnCounter
 import qualified Game.Halma.AI.Competitive as Competitive

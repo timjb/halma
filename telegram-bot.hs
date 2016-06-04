@@ -8,7 +8,6 @@ module Main where
 
 import Game.Halma.Board
 import Game.Halma.Configuration
-import Game.Halma.State (HalmaState (..))
 import Game.Halma.TelegramBot.BotM
 import Game.Halma.TelegramBot.Cmd
 import Game.Halma.TelegramBot.DrawBoard
@@ -119,6 +118,25 @@ handleCommand cmdCall =
         botState { bsMatchState = GatheringPlayers NoPlayers }
     CmdCall { cmdCallName = "newround" } ->
       pure $ Just $ sendMsg $ textMsg "todo: newround"
+    CmdCall { cmdCallName = "undo" } -> do
+      matchState <- gets bsMatchState
+      case matchState of
+        MatchRunning match@(Match { matchCurrentGame = Just game }) ->
+          case undoLastMove game of
+            Just game' ->
+              let
+                match' = match { matchCurrentGame = Just game' }
+              in
+                pure $ Just $
+                  modify $ \botState ->
+                    botState { bsMatchState = MatchRunning match' }
+            Nothing -> do
+              sendMsg $ textMsg "can't undo!"
+              pure Nothing
+        _ -> do
+          sendMsg $ textMsg $
+            "can't undo: there's no game running!"
+          pure Nothing
     _ -> pure Nothing
 
 handleMoveCmd
@@ -138,7 +156,7 @@ handleMoveCmd match game moveCmd fullMsg = do
       let
         (team, player) = currentPlayer (hsTurnCounter game)
         checkResult =
-          checkMoveCmd (hsRuleOptions game) (hsBoard game) team moveCmd
+          checkMoveCmd (matchRules match) (hsBoard game) team moveCmd
       case checkResult of
         _ | player /= TelegramPlayer sender -> do
           sendMsg $ textMsg $
@@ -162,17 +180,12 @@ handleMoveCmd match game moveCmd fullMsg = do
           sendMsg $ textMsgWithKeyboard text keyboard
           pure Nothing
         MoveFoundUnique move ->
-          case movePiece move (hsBoard game) of
+          case doMove move game of
             Left err -> do
               printError err
               pure Nothing
-            Right board' -> do
+            Right game' -> do
               let
-                game' =
-                  game
-                    { hsBoard = board'
-                    , hsTurnCounter = nextTurn (hsTurnCounter game)
-                    }
                 match' = match { matchCurrentGame = Just game' }
               pure $ Just $ do
                 modify $ \botState ->
