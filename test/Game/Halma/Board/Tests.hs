@@ -114,21 +114,22 @@ prop_fromMap :: HalmaBoard size -> Bool
 prop_fromMap halmaBoard = fromMap (getGrid halmaBoard) (toMap halmaBoard) == Just halmaBoard
 
 prop_moveNumbersInvariant :: HalmaBoard size -> Gen Bool
-prop_moveNumbersInvariant halmaBoard = do
-  let halmaGrid = getGrid halmaBoard
-  startPos <- genHalmaGridPos halmaGrid
-  endPos <- genHalmaGridPos halmaGrid
-  case movePiece startPos endPos halmaBoard of
+prop_moveNumbersInvariant board = do
+  let grid = getGrid board
+  startPos <- genHalmaGridPos grid
+  endPos <- genHalmaGridPos grid
+  let move = Move { moveFrom = startPos, moveTo = endPos }
+  case movePiece move board of
     Left _err ->
       -- may only fail when there is no piece on the start position or a piece
       -- on the end position
-      return $ lookupHalmaBoard startPos halmaBoard == Nothing || isJust (lookupHalmaBoard endPos halmaBoard)
-    Right halmaBoard' -> do
-      let pieces = map (\p -> lookupHalmaBoard p halmaBoard') (indices halmaGrid)
+      return $ lookupHalmaBoard startPos board == Nothing || isJust (lookupHalmaBoard endPos board)
+    Right board' -> do
+      let pieces = map (\p -> lookupHalmaBoard p board') (indices grid)
       return $
-        lookupHalmaBoard endPos halmaBoard' == lookupHalmaBoard startPos halmaBoard &&
-        lookupHalmaBoard endPos halmaBoard  == lookupHalmaBoard startPos halmaBoard' &&
-        numbersCorrect halmaGrid pieces
+        lookupHalmaBoard endPos board' == lookupHalmaBoard startPos board &&
+        lookupHalmaBoard endPos board  == lookupHalmaBoard startPos board' &&
+        numbersCorrect grid pieces
 
 tests :: Test
 tests =
