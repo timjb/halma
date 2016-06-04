@@ -21,7 +21,7 @@ import Game.Halma.Board
 import Game.Halma.Rules
 
 import Data.Bifunctor (first)
-import Data.Char (chr, ord, toLower)
+import Data.Char (chr, ord, toUpper)
 import Data.List.NonEmpty (NonEmpty (..), sortBy, toList)
 import Data.Monoid ((<>))
 import Data.Traversable (mapAccumL)
@@ -76,12 +76,12 @@ tagWithTargetModifier untagged =
 type PieceNumber = Word8
 
 pieceNumberToChar :: PieceNumber -> Char
-pieceNumberToChar i = chr (ord 'a' + fromIntegral i - 1)
+pieceNumberToChar i = chr (ord 'A' + fromIntegral i - 1)
 
 pieceNumberFromChar :: Char -> Maybe PieceNumber
 pieceNumberFromChar c =
   let
-    j = 1 + ord (toLower c) - ord 'a'
+    j = 1 + ord (toUpper c) - ord 'A'
   in if 1 <= j && j <= 15 then
     Just (fromIntegral j)
   else

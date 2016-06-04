@@ -57,14 +57,14 @@ newtype GameResult
   { numberOfMoves :: [(Player, Int)]
   } deriving (Show)
 
-data HalmaState size a
+data HalmaState size
   = HalmaState
   { hsBoard :: HalmaBoard size
-  , hsTurnCounter :: TurnCounter (Team, a)
+  , hsTurnCounter :: TurnCounter (Team, Player)
   , hsLastMove :: Maybe Move
   } deriving (Eq, Show)
 
-newGame :: Configuration size a -> HalmaState size a
+newGame :: Configuration size Player -> HalmaState size
 newGame (Configuration halmaGrid nop) =
   HalmaState
     { hsBoard = initialBoard halmaGrid isActive
@@ -75,7 +75,7 @@ newGame (Configuration halmaGrid nop) =
     players = getPlayers nop
     isActive color = color `elem` (fst <$> players)
 
-doMove :: Move -> HalmaState size a -> Either String (HalmaState size a)
+doMove :: Move -> HalmaState size -> Either String (HalmaState size)
 doMove move state =
   case movePiece move (hsBoard state) of
     Left err -> Left err
@@ -87,7 +87,7 @@ doMove move state =
           , hsLastMove = Just move
           }
 
-undoLastMove :: HalmaState size a -> Maybe (HalmaState size a)
+undoLastMove :: HalmaState size -> Maybe (HalmaState size)
 undoLastMove state = do
   move <- hsLastMove state
   board' <- eitherToMaybe $ movePiece (invertMove move) (hsBoard state)
@@ -107,7 +107,7 @@ data Match size
   { matchConfig :: Configuration size Player
   , matchRules :: RuleOptions
   , matchHistory :: [GameResult]
-  , matchCurrentGame :: Maybe (HalmaState size Player)
+  , matchCurrentGame :: Maybe (HalmaState size)
   } deriving (Show)
 
 newMatch :: Configuration size Player -> Match size

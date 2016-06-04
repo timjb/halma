@@ -79,9 +79,9 @@ getUpdates = do
         modify (\s -> s { bsNextId = nid' })
       return (Right updates)
   
-sendCurrentBoard :: HalmaState size Player -> BotM ()
+sendCurrentBoard :: HalmaState size -> BotM ()
 sendCurrentBoard halmaState =
-  withRenderedBoardInPngFile (hsBoard halmaState) $ \path -> do
+  withRenderedBoardInPngFile halmaState $ \path -> do
     chatId <- gets bsChatId
     let
       fileUpload = TG.localFileUpload path
@@ -141,7 +141,7 @@ handleCommand cmdCall =
 
 handleMoveCmd
   :: Match size
-  -> HalmaState size Player
+  -> HalmaState size
   -> MoveCmd
   -> TG.Message
   -> BotM (Maybe (BotM ()))
@@ -175,8 +175,8 @@ handleMoveCmd match game moveCmd fullMsg = do
               "following list."
             suggestionToButton (modifier, _move) =
               let moveCmd' = moveCmd { moveTargetModifier = Just modifier }
-              in [showMoveCmd moveCmd']
-            keyboard = mkKeyboard (suggestionToButton <$> toList suggestions)
+              in showMoveCmd moveCmd'
+            keyboard = mkKeyboard [suggestionToButton <$> toList suggestions]
           sendMsg $ textMsgWithKeyboard text keyboard
           pure Nothing
         MoveFoundUnique move ->
@@ -299,10 +299,10 @@ sendGatheringPlayers playersSoFar =
     anotherPlayerKeyboard =
       mkKeyboard [["yes, me"], ["yes, an AI"], ["no"]]
 
-mkAIMove :: HalmaState size Player -> BotM ()
+mkAIMove :: HalmaState size -> BotM ()
 mkAIMove _game = fail "mkAIMove not implemented yet!"
 
-sendGameState :: HalmaState size Player -> BotM ()
+sendGameState :: HalmaState size -> BotM ()
 sendGameState game = do
   sendCurrentBoard game
   let

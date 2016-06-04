@@ -7,6 +7,7 @@ module Game.Halma.TelegramBot.DrawBoard
 import Game.Halma.Board
 import Game.Halma.Board.Draw
 import Game.Halma.TelegramBot.Move
+import Game.Halma.TelegramBot.Types
 
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -23,13 +24,13 @@ import qualified Data.Text as T
 
 withRenderedBoardInPngFile
   :: (MonadIO m, MonadMask m)
-  => HalmaBoard size
+  => HalmaState size
   -> (FilePath -> m a)
   -> m a
-withRenderedBoardInPngFile board action =
+withRenderedBoardInPngFile game action =
   withTempPngFilePath $ \path -> do
     let
-      dia = drawBoardForChat board # D.centerXY # D.pad 1.1
+      dia = drawBoardForChat game # D.centerXY # D.pad 1.1
       bounds = dims (V2 1000 1000)
     liftIO $ renderCairo path bounds dia
     action path
@@ -40,13 +41,14 @@ withRenderedBoardInPngFile board action =
         liftIO (hClose fileHandle)
         handler filePath
 
-drawBoardForChat :: HalmaBoard size -> D.Diagram Cairo
-drawBoardForChat board =
+drawBoardForChat :: HalmaState size -> D.Diagram Cairo
+drawBoardForChat game =
   let
     boardDia = resetValue (drawBoard' (getGrid board) drawField)
   in
     scale ||| D.strut D.unitX ||| boardDia ||| D.strut D.unitX ||| scale
   where
+    board = hsBoard game
     dirY = D.rotateBy (1/6) D.unitX
     rowDir = dirY & D._x .~ 0
     boardFontStyle x = x # D.fontSize (D.output 22) # D.font "Arial"
@@ -63,13 +65,20 @@ drawBoardForChat board =
             D.text txt # boardFontStyle # D.fc D.gray
     drawField :: (Int, Int) -> D.Diagram Cairo
     drawField field =
-      maybe mempty drawPiece $ lookupHalmaBoard field board
+      case lookupHalmaBoard field board of
+        Just piece ->
+          if Just field == (moveTo <$> hsLastMove game) then
+            drawPiece piece # D.lc D.black # D.lw D.medium
+          else
+            drawPiece piece
+        Nothing ->
+          mempty
     drawPiece :: Piece -> D.Diagram Cairo
     drawPiece piece =
       let
         c = defaultTeamColours (pieceTeam piece)
         symbol = T.unpack (showPieceNumber (pieceNumber piece))
         text = D.text symbol # boardFontStyle # D.fc D.white
-        circle = D.circle 0.3 # D.fc c # D.lc (D.darken 0.5 c)
+        circle = D.circle 0.3 # D.fc c
       in
         text `D.atop` circle
