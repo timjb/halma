@@ -150,7 +150,7 @@ parseMoveCmd text =
 data CheckMoveCmdResult
   = MoveImpossible String
   | MoveFoundUnique Move
-  | MoveSuggestions (NonEmpty (TargetModifier, Move))
+  | MoveSuggestions (NonEmpty (MoveCmd, Move))
   deriving (Show, Eq)
 
 checkMoveCmd
@@ -169,6 +169,7 @@ checkMoveCmd rules board player moveCmd =
       let
         possibleEndPositions = possibleMoves rules board startPos
         mkMoveTo endPos = Move { moveFrom = startPos, moveTo = endPos }
+        mkMoveCmd tm = moveCmd { moveTargetModifier = Just tm }
       in
         case filter isInTargetRow possibleEndPositions of
           [] ->
@@ -182,7 +183,7 @@ checkMoveCmd rules board player moveCmd =
               Just (TargetModifier 0) ->
                 MoveFoundUnique (mkMoveTo endPos)
               Just (TargetModifier _) ->
-                MoveSuggestions $ pure (TargetModifier 0, mkMoveTo endPos)
+                MoveSuggestions $ pure (mkMoveCmd (TargetModifier 0), mkMoveTo endPos)
           firstEndPos:restEndPos@(_:_) ->
             let
               sortedEndPos = sortBy compareByXCoord (firstEndPos :| restEndPos)
@@ -194,7 +195,10 @@ checkMoveCmd rules board player moveCmd =
             in
               case mMove of
                 Just move -> MoveFoundUnique move
-                Nothing -> MoveSuggestions taggedMoves
+                Nothing ->
+                  let
+                  in
+                    MoveSuggestions $ first mkMoveCmd <$> taggedMoves 
   where
     allPieces = swap <$> M.toList (toMap board)
     pieceToMove =

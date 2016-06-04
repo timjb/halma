@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Game.Halma.TelegramBot.DrawBoard
-  ( withRenderedBoardInPngFile
+  ( BoardLabels
+  , withRenderedBoardInPngFile
   ) where
 
 import Game.Halma.Board
@@ -19,18 +20,22 @@ import Diagrams.TwoD.Types (V2 (..))
 import System.Directory (getTemporaryDirectory)
 import System.IO (hClose)
 import System.IO.Temp (withTempFile)
-import qualified Diagrams.Prelude as D
 import qualified Data.Text as T
+import qualified Data.Map as M
+import qualified Diagrams.Prelude as D
+
+type BoardLabels = M.Map (Int, Int) T.Text
 
 withRenderedBoardInPngFile
   :: (MonadIO m, MonadMask m)
   => HalmaState size
+  -> BoardLabels
   -> (FilePath -> m a)
   -> m a
-withRenderedBoardInPngFile game action =
+withRenderedBoardInPngFile game labels action =
   withTempPngFilePath $ \path -> do
     let
-      dia = drawBoardForChat game # D.centerXY # D.pad 1.1
+      dia = drawBoardForChat game labels # D.centerXY # D.pad 1.1
       bounds = dims (V2 1000 1000)
     liftIO $ renderCairo path bounds dia
     action path
@@ -41,8 +46,8 @@ withRenderedBoardInPngFile game action =
         liftIO (hClose fileHandle)
         handler filePath
 
-drawBoardForChat :: HalmaState size -> D.Diagram Cairo
-drawBoardForChat game =
+drawBoardForChat :: HalmaState size -> BoardLabels -> D.Diagram Cairo
+drawBoardForChat game labels =
   let
     boardDia = resetValue (drawBoard' (getGrid board) drawField)
   in
@@ -72,7 +77,9 @@ drawBoardForChat game =
           else
             drawPiece piece
         Nothing ->
-          mempty
+          case M.lookup field labels of
+            Just label -> drawLabel label
+            Nothing -> mempty
     drawPiece :: Piece -> D.Diagram Cairo
     drawPiece piece =
       let
@@ -80,5 +87,12 @@ drawBoardForChat game =
         symbol = T.unpack (showPieceNumber (pieceNumber piece))
         text = D.text symbol # boardFontStyle # D.fc D.white
         circle = D.circle 0.3 # D.fc c
+      in
+        text `D.atop` circle
+    drawLabel :: T.Text -> D.Diagram Cairo
+    drawLabel label =
+      let
+        text = D.text (T.unpack label) # boardFontStyle # D.fc D.gray
+        circle = D.circle 0.3 # D.fc D.white
       in
         text `D.atop` circle

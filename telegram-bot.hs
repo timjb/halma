@@ -17,6 +17,7 @@ import Game.Halma.TelegramBot.Types
 import Game.TurnCounter
 
 import Data.Foldable (toList)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (catMaybes)
 import Data.Monoid ((<>))
 import Control.Monad (unless)
@@ -25,6 +26,7 @@ import Control.Monad.State.Class (MonadState (..), gets, modify)
 import Servant.Common.Req (ServantError)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
+import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
@@ -81,7 +83,7 @@ getUpdates = do
   
 sendCurrentBoard :: HalmaState size -> BotM ()
 sendCurrentBoard halmaState =
-  withRenderedBoardInPngFile halmaState $ \path -> do
+  withRenderedBoardInPngFile halmaState mempty $ \path -> do
     chatId <- gets bsChatId
     let
       fileUpload = TG.localFileUpload path
@@ -139,6 +141,39 @@ handleCommand cmdCall =
           pure Nothing
     _ -> pure Nothing
 
+sendMoveSuggestions
+  :: TG.User
+  -> TG.Message
+  -> HalmaState size
+  -> NonEmpty (MoveCmd, Move)
+  -> BotM ()
+sendMoveSuggestions sender msg game suggestions = do
+  let
+    text =
+      showUser sender <> ", the move command you sent is ambiguous. " <>
+      "Please send another move command or choose one in the " <>
+      "following list."
+    suggestionToButton (moveCmd, _move) =
+      showMoveCmd moveCmd
+    keyboard = mkKeyboard [suggestionToButton <$> toList suggestions]
+    suggestionToLabel (moveCmd, move) =
+      ( moveTo move
+      , maybe "" showTargetModifier (moveTargetModifier moveCmd)
+      )
+    boardLabels =
+      M.fromList $ map suggestionToLabel $ toList suggestions
+  withRenderedBoardInPngFile game boardLabels $ \path -> do
+    chatId <- gets bsChatId
+    let
+      fileUpload = TG.localFileUpload path
+      photoReq =
+        (TG.uploadPhotoRequest chatId fileUpload)
+          { TG.photo_caption = Just text
+          , TG.photo_reply_to_message_id = Just (TG.message_id msg)
+          , TG.photo_reply_markup = Just keyboard
+          }
+    logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
+
 handleMoveCmd
   :: Match size
   -> HalmaState size
@@ -168,16 +203,7 @@ handleMoveCmd match game moveCmd fullMsg = do
             "This move is not possible: " <> T.pack reason
           pure Nothing
         MoveSuggestions suggestions -> do
-          let
-            text =
-              showUser sender <> ", the move command you sent is ambiguous. " <>
-              "Please send another move command or choose one in the " <>
-              "following list."
-            suggestionToButton (modifier, _move) =
-              let moveCmd' = moveCmd { moveTargetModifier = Just modifier }
-              in showMoveCmd moveCmd'
-            keyboard = mkKeyboard [suggestionToButton <$> toList suggestions]
-          sendMsg $ textMsgWithKeyboard text keyboard
+          sendMoveSuggestions sender fullMsg game suggestions
           pure Nothing
         MoveFoundUnique move ->
           case doMove move game of
