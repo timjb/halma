@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Game.Halma.TelegramBot.DrawBoard
   ( withRenderedBoardInPngFile
@@ -11,7 +10,6 @@ import Game.Halma.TelegramBot.Move
 
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Colour.SRGB (sRGB24read)
 import Diagrams.Backend.Cairo (Cairo, renderCairo)
 import Diagrams.Prelude ((#), (|||), (*^), (&), (.~))
 import Diagrams.Query (resetValue)
@@ -63,23 +61,13 @@ drawBoardForChat board =
             txt = show (unRowNumber humanRowNumber)
           in
             D.text txt # boardFontStyle # D.fc D.gray
-    -- colors from http://clrs.cc/
-    botTeamColours :: Team -> D.Colour Double
-    botTeamColours =
-      \case
-        North     -> sRGB24read "#0074D9" -- blue
-        Northeast -> sRGB24read "#2ECC40" -- green
-        Northwest -> sRGB24read "#B10DC9" -- purple
-        South     -> sRGB24read "#FF4136" -- red
-        Southeast -> sRGB24read "#111111" -- black
-        Southwest -> sRGB24read "#FF851B" -- orange
     drawField :: (Int, Int) -> D.Diagram Cairo
     drawField field =
       maybe mempty drawPiece $ lookupHalmaBoard field board
     drawPiece :: Piece -> D.Diagram Cairo
     drawPiece piece =
       let
-        c = botTeamColours (pieceTeam piece)
+        c = defaultTeamColours (pieceTeam piece)
         symbol = T.unpack (showPieceNumber (pieceNumber piece))
         text = D.text symbol # boardFontStyle # D.fc D.white
         circle = D.circle 0.3 # D.fc c # D.lc (D.darken 0.5 c)

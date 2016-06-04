@@ -87,7 +87,6 @@ Executable halma-bot
                        diagrams-lib,
                        diagrams-cairo,
                        directory,
-                       colour,
                        semigroups,
                        containers
   default-language:    Haskell2010

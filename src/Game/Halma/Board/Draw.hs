@@ -12,13 +12,14 @@ import Math.Geometry.Grid
 
 defaultTeamColours :: Team -> Colour Double
 defaultTeamColours team =
+  -- colors from http://clrs.cc/
   case team of
-    North -> yellow
-    South -> red
-    Northwest -> cyan
-    Northeast -> orange
-    Southwest -> pink
-    Southeast -> blue
+    North     -> sRGB24read "#0074D9" -- blue
+    Northeast -> sRGB24read "#2ECC40" -- green
+    Northwest -> sRGB24read "#B10DC9" -- purple
+    South     -> sRGB24read "#FF4136" -- red
+    Southeast -> sRGB24read "#111111" -- black
+    Southwest -> sRGB24read "#FF851B" -- orange
 
 -- | Render the board using the helper function for drawing the fields.
 -- Supports querying for field positions.
