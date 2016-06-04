@@ -293,12 +293,20 @@ sendGameState :: HalmaState size Player -> BotM ()
 sendGameState game = do
   sendCurrentBoard game
   let
-    (_dir, player) = currentPlayer (hsTurnCounter game)
+    (dir, player) = currentPlayer (hsTurnCounter game)
+    unicodeSymbol =
+      case dir of
+        North     -> "\128309" -- :large_blue_circle: for blue
+        Northeast -> "\128154" -- :green_heart: for green
+        Northwest -> "\128156" -- :purple_heart: for purple
+        South     -> "\128308" -- :red_circle: for red
+        Southeast -> "\9899"   -- :medium_black_circle: for black
+        Southwest -> "\128310" -- :large_orange_diamond: for orange
   case player of
     AIPlayer -> mkAIMove game
     TelegramPlayer user ->
       sendMsg $ textMsg $
-        showUser user <> " it's your turn!"
+        showUser user <> " " <> unicodeSymbol <> " it's your turn!"
 
 sendMatchState :: BotM ()
 sendMatchState = do
