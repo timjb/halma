@@ -191,9 +191,11 @@ handleMoveCmd match game moveCmd fullMsg = do
       pure Nothing
     Just sender -> do
       let
-        (team, player) = currentPlayer (hsTurnCounter game)
+        currParty = currentPlayer (hsTurnCounter game)
+        homeCorner = partyHomeCorner currParty
+        player = partyPlayer currParty
         checkResult =
-          checkMoveCmd (matchRules match) (hsBoard game) team moveCmd
+          checkMoveCmd (matchRules match) (hsBoard game) homeCorner moveCmd
       case checkResult of
         _ | player /= TelegramPlayer sender -> do
           sendMsg $ textMsg $
@@ -344,16 +346,16 @@ doAIMove match game = do
     board = hsBoard game
     rules = matchRules match
     numberOfPlayers = length $ tcPlayers tc
-    (currTeam, _) = currentPlayer tc
+    currParty = currentPlayer tc
     aiMove =
       if numberOfPlayers == 2 then
         let
-          (nextTeam, _) = nextPlayer tc
-          perspective = (currTeam, nextTeam)
+          nextParty = nextPlayer tc
+          perspective = (partyHomeCorner currParty, partyHomeCorner nextParty)
         in
           CompetitiveAI.aiMove rules board perspective
       else
-        IgnorantAI.aiMove rules board currTeam
+        IgnorantAI.aiMove rules board (partyHomeCorner currParty)
     mAIMoveCmd = moveToMoveCmd rules board aiMove
   case doMove aiMove game of
     Left err ->
@@ -363,8 +365,8 @@ doAIMove match game = do
       case mAIMoveCmd of
         Just moveCmd ->
           sendMsg $ textMsg $
-            "The AI " <> teamEmoji currTeam <> " makes the following move: " <>
-            showMoveCmd moveCmd
+            "The AI " <> teamEmoji (partyHomeCorner currParty) <>
+            " makes the following move: " <> showMoveCmd moveCmd
         Nothing -> pure ()
       modify $ \botState ->
         botState { bsMatchState = MatchRunning match' }
@@ -373,9 +375,9 @@ sendGameState :: Match size -> HalmaState size -> BotM ()
 sendGameState match game = do
   sendCurrentBoard game
   let
-    (dir, player) = currentPlayer (hsTurnCounter game)
-    unicodeSymbol = teamEmoji dir
-  case player of
+    currParty = currentPlayer (hsTurnCounter game)
+    unicodeSymbol = teamEmoji (partyHomeCorner currParty)
+  case partyPlayer currParty of
     AIPlayer -> do
       doAIMove match game
       sendMatchState

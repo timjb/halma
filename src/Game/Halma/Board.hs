@@ -1,8 +1,10 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Game.Halma.Board
   ( HalmaGridSize (..), HalmaGrid (..)
@@ -23,10 +25,14 @@ module Game.Halma.Board
   , initialBoard
   ) where
 
+import Control.Monad (unless)
+import Data.Aeson ((.=), (.:))
 import Data.List (sort)
 import Data.Maybe (fromJust)
 import Data.Word (Word8)
 import GHC.Generics (Generic)
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.Map.Strict as M
 import qualified Math.Geometry.Grid as Grid
 import qualified Math.Geometry.GridInternal as Grid
@@ -48,6 +54,28 @@ instance Ord (HalmaGrid size) where
 instance Show (HalmaGrid size) where
   show SmallGrid = "SmallGrid"
   show LargeGrid = "LargeGrid"
+
+instance A.ToJSON (HalmaGrid size) where
+  toJSON grid =
+    case grid of
+      SmallGrid -> "SmallGrid"
+      LargeGrid -> "LargeGrid"
+
+instance A.FromJSON (HalmaGrid 'S) where
+  parseJSON =
+    A.withText "HalmaGrid 'S" $ \text ->
+      if text == "SmallGrid" then
+        pure SmallGrid
+      else
+        fail "expected the string 'SmallGrid'"
+
+instance A.FromJSON (HalmaGrid 'L) where
+  parseJSON =
+    A.withText "HalmaGrid 'L" $ \text ->
+      if text == "LargeGrid" then
+        pure LargeGrid
+      else
+        fail "expected the string 'LargeGrid'"
 
 -- | Numbers of fields on each straight edge of a star-shaped halma board of the
 -- given size.
@@ -73,6 +101,28 @@ data HalmaDirection
   | Southwest
   | Northwest
   deriving (Eq, Show, Read, Ord, Bounded, Enum, Generic)
+
+instance A.ToJSON HalmaDirection where
+  toJSON dir =
+    case dir of
+      North -> "N"
+      Northeast -> "NE"
+      Southeast -> "SE"
+      South -> "S"
+      Southwest -> "SW"
+      Northwest -> "NW"
+
+instance A.FromJSON HalmaDirection where
+  parseJSON =
+    A.withText "HalmaDirection" $ \text ->
+      case text of
+        "N"  -> pure North
+        "NE" -> pure Northeast
+        "SE" -> pure Southeast
+        "S"  -> pure South
+        "SW" -> pure Southwest
+        "NW" -> pure Northwest
+        _    -> fail "expected a Halma direction (one of N, NE, SE, S, SW, NW)"
 
 oppositeDirection :: HalmaDirection -> HalmaDirection
 oppositeDirection dir =
@@ -191,6 +241,23 @@ data Piece
   , pieceNumber :: Word8 -- ^ number between 1 and 15
   } deriving (Show, Eq, Ord)
 
+instance A.ToJSON Piece where
+  toJSON piece =
+    A.object
+      [ "team" .= A.toJSON (pieceTeam piece)
+      , "number" .= A.toJSON (pieceNumber piece)
+      ]
+
+instance A.FromJSON Piece where
+  parseJSON =
+    A.withObject "Piece" $ \o -> do
+      team <- o .: "team"
+      number <- o .: "number"
+      unless (1 <= number && number <= 15) $
+        fail "pieces must have a number between 1 and 15!"
+      pure $ Piece { pieceTeam = team, pieceNumber = number }
+          
+
 -- | Map from board positions to the team occupying that position.
 data HalmaBoard size =
   HalmaBoard
@@ -201,6 +268,47 @@ data HalmaBoard size =
 instance Show (HalmaBoard size) where
   show (HalmaBoard halmaGrid m) =
     "fromMap " ++ show halmaGrid ++ " (" ++ show m ++ ")"
+
+instance A.ToJSON (HalmaBoard size) where
+  toJSON board =
+    A.object
+      [ "grid" .= A.toJSON (getGrid board)
+      , "occupied_fields" .= map fieldToJSON (M.assocs (toMap board))
+      ]
+    where
+      fieldToJSON ((x, y), piece) =
+        A.object
+          [ "x" .= x
+          , "y" .= y
+          , "piece" .= A.toJSON piece
+          ]
+
+parseHalmaBoardFromJSON
+  :: A.FromJSON (HalmaGrid size)
+  => A.Value
+  -> A.Parser (HalmaBoard size)
+parseHalmaBoardFromJSON =
+  A.withObject "HalmaGrid size" $ \o -> do
+    grid <- o .: "grid"
+    fieldVals <- o .: "occupied_fields"
+    fieldsMap <- M.fromList <$> mapM parseFieldFromJSON fieldVals
+    case fromMap grid fieldsMap of
+      Just board -> pure board
+      Nothing ->
+        fail "the JSON describing the occupied fields violates some invariant!"
+  where
+    parseFieldFromJSON =
+      A.withObject "field" $ \o -> do
+        x <- o .: "x"
+        y <- o .: "y"
+        piece <- o .: "piece"
+        pure ((x, y), piece)
+
+instance  A.FromJSON (HalmaBoard 'S) where
+  parseJSON = parseHalmaBoardFromJSON
+
+instance  A.FromJSON (HalmaBoard 'L) where
+  parseJSON = parseHalmaBoardFromJSON
 
 -- | Construct halma boards. Satisfies
 -- @fromMap (getGrid board) (toMap board) = Just board@.
@@ -233,6 +341,26 @@ data Move
   { moveFrom :: (Int, Int) -- ^ start position
   , moveTo :: (Int, Int) -- ^ end position, must be different from start position
   } deriving (Show, Eq)
+
+instance A.ToJSON Move where
+  toJSON move =
+    A.object
+      [ "from" .= coordsToJSON (moveFrom move)
+      , "to"   .= coordsToJSON (moveTo move)
+      ]
+    where
+      coordsToJSON (x, y) = A.object [ "x" .= x, "y" .= y ]
+
+instance A.FromJSON Move where
+  parseJSON =
+    A.withObject "Move" $ \o -> do
+      from <- parseCoordsFromJSON =<< o .: "from"
+      to <- parseCoordsFromJSON =<< o .: "to"
+      pure $ Move { moveFrom = from, moveTo = to }
+    where
+      parseCoordsFromJSON =
+        A.withObject "(Int, Int)" $ \o ->
+          (,) <$> o .: "x" <*> o .: "y"
 
 -- | Move a piece on the halma board. This function does not check whether the
 -- move is valid according to the Halma rules.

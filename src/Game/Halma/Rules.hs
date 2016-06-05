@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Game.Halma.Rules
   ( MoveRestriction (..)
   , RuleOptions (..)
@@ -8,14 +10,15 @@ module Game.Halma.Rules
 import Game.Halma.Board
 
 import Control.Monad (guard)
+import Data.Aeson ((.=), (.:))
 import Data.Default
 import Data.Function (on)
 import Data.Maybe (catMaybes, isJust, isNothing)
 import Data.Monoid ((<>))
 import Math.Geometry.Grid
+import qualified Data.Aeson as A
 import qualified Data.Set as S
 import qualified Math.Geometry.Grid.HexagonalInternal as HexGrid
-
 
 data MoveRestriction
   = Allowed     -- ^ moves of this kind of field are allowed
@@ -23,11 +26,41 @@ data MoveRestriction
   | Forbidden   -- ^ the player can't pass or occupy the field
   deriving (Show, Eq)
 
+instance A.ToJSON MoveRestriction where
+  toJSON moveRestriction =
+    case moveRestriction of
+      Allowed -> "allowed"
+      Temporarily -> "temporarily"
+      Forbidden -> "forbidden"
+
+instance A.FromJSON MoveRestriction where  
+  parseJSON =
+    A.withText "MoveRestriction" $ \text ->
+      case text of
+        "allowed"     -> pure Allowed
+        "temporarily" -> pure Temporarily
+        "forbidden"   -> pure Forbidden
+        _ -> fail "expected 'allowed', 'temporarily' or 'forbidden'"
+
 data RuleOptions
   = RuleOptions
   { movingBackwards :: MoveRestriction -- ^ May pieces be moved backwards?
   , invading :: MoveRestriction -- ^ May pieces be moved into other star corners?
   } deriving (Show, Eq)
+
+instance A.ToJSON RuleOptions where
+  toJSON rules =
+    A.object
+      [ "moving_backwards" .= A.toJSON (movingBackwards rules)
+      , "invading" .= A.toJSON (invading rules)
+      ]
+
+instance A.FromJSON RuleOptions where
+  parseJSON =
+    A.withObject "RuleOptions" $ \o -> do
+      bw <- o .: "moving_backwards"
+      inv <- o .: "invading"
+      pure $ RuleOptions { movingBackwards = bw, invading = inv }
 
 instance Default RuleOptions where
   def = RuleOptions { movingBackwards = Temporarily, invading = Allowed }
