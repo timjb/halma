@@ -13,6 +13,7 @@ module Game.Halma.TelegramBot.Move
   , MoveCmd (..)
   , showMoveCmd
   , parseMoveCmd
+  , moveToMoveCmd
   , CheckMoveCmdResult (..)
   , checkMoveCmd
   ) where
@@ -22,7 +23,8 @@ import Game.Halma.Rules
 
 import Data.Bifunctor (first)
 import Data.Char (chr, ord, toUpper)
-import Data.List.NonEmpty (NonEmpty (..), sortBy, toList)
+import Data.List (sortBy)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Monoid ((<>))
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
@@ -147,6 +149,48 @@ parseMoveCmd text =
   where
     moveCmdLineParser = (P.space *> moveCmdParser) <* P.space <* P.eof
 
+movesToRow
+  :: RuleOptions
+  -> HalmaBoard size
+  -> (Int, Int)
+  -> Int
+  -> [(TargetModifier, Move)]
+movesToRow rules board startPos targetRow =
+  let
+    allEndPos = possibleMoves rules board startPos
+    endPosInTargetRow = filter isInTargetRow allEndPos
+    sortedEndPos = sortBy compareByXCoord endPosInTargetRow
+    sortedMoves = mkMoveTo <$> sortedEndPos
+  in
+    tagWithTargetModifier sortedMoves
+  where
+    isInTargetRow (_x, y) = y == targetRow
+    mkMoveTo endPos = Move { moveFrom = startPos, moveTo = endPos }
+    compareByXCoord (x1, _) (x2, _) = compare x1 x2
+
+moveToMoveCmd
+  :: RuleOptions
+  -> HalmaBoard size
+  -> Move
+  -> Maybe MoveCmd
+moveToMoveCmd rules board move = do
+  let
+    startPos = moveFrom move
+  piece <- lookupHalmaBoard startPos board
+  let
+    targetRow = getRow (moveTo move)
+    movesToTargetRow = movesToRow rules board startPos targetRow
+  targetModifier <- lookup move (map swap movesToTargetRow)
+  Just $
+    MoveCmd
+      { movePieceNumber = pieceNumber piece
+      , moveTargetRow = internalToHumanRowNumber (getGrid board) targetRow
+      , moveTargetModifier = Just targetModifier
+      }
+  where
+    getRow (_x, y) = y
+  
+
 data CheckMoveCmdResult
   = MoveImpossible String
   | MoveFoundUnique Move
@@ -167,38 +211,32 @@ checkMoveCmd rules board player moveCmd =
         " is not on the Halma board!"
     Just startPos ->
       let
-        possibleEndPositions = possibleMoves rules board startPos
-        mkMoveTo endPos = Move { moveFrom = startPos, moveTo = endPos }
         mkMoveCmd tm = moveCmd { moveTargetModifier = Just tm }
+        movesToTargetRow = movesToRow rules board startPos targetRow
       in
-        case filter isInTargetRow possibleEndPositions of
+        case first mkMoveCmd <$> movesToTargetRow of
           [] ->
             MoveImpossible $
               "The selected piece can't be moved to row " ++
               show (unRowNumber (moveTargetRow moveCmd)) ++ "!"
-          [endPos] ->
+          [(moveCmd', move)] ->
             case moveTargetModifier moveCmd of
               Nothing ->
-                MoveFoundUnique (mkMoveTo endPos)
+                MoveFoundUnique move
               Just (TargetModifier 0) ->
-                MoveFoundUnique (mkMoveTo endPos)
+                MoveFoundUnique move
               Just (TargetModifier _) ->
-                MoveSuggestions $ pure (mkMoveCmd (TargetModifier 0), mkMoveTo endPos)
-          firstEndPos:restEndPos@(_:_) ->
+                MoveSuggestions $ pure (moveCmd', move)
+          firstMove:restMoves@(_:_) ->
             let
-              sortedEndPos = sortBy compareByXCoord (firstEndPos :| restEndPos)
-              sortedMoves = mkMoveTo <$> sortedEndPos
-              taggedMoves = tagWithTargetModifier sortedMoves
               mMove = do
                 targetModifier <- moveTargetModifier moveCmd
-                lookup targetModifier (toList taggedMoves)
+                lookup targetModifier movesToTargetRow
             in
               case mMove of
                 Just move -> MoveFoundUnique move
-                Nothing ->
-                  let
-                  in
-                    MoveSuggestions $ first mkMoveCmd <$> taggedMoves 
+                Nothing -> MoveSuggestions (firstMove :| restMoves)
+                    
   where
     allPieces = swap <$> M.toList (toMap board)
     pieceToMove =
@@ -207,6 +245,4 @@ checkMoveCmd rules board player moveCmd =
         , pieceNumber = movePieceNumber moveCmd
         }
     targetRow = humanToInternalRowNumber (getGrid board) (moveTargetRow moveCmd)
-    isInTargetRow (_x, y) = y == targetRow
-    compareByXCoord (x1, _) (x2, _) = compare x1 x2
     

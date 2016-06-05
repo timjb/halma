@@ -15,6 +15,8 @@ import Game.Halma.TelegramBot.I18n
 import Game.Halma.TelegramBot.Move
 import Game.Halma.TelegramBot.Types
 import Game.TurnCounter
+import qualified Game.Halma.AI.Ignorant as IgnorantAI
+import qualified Game.Halma.AI.Competitive as CompetitiveAI
 
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -325,24 +327,58 @@ sendGatheringPlayers playersSoFar =
     anotherPlayerKeyboard =
       mkKeyboard [["yes, me"], ["yes, an AI"], ["no"]]
 
-mkAIMove :: HalmaState size -> BotM ()
-mkAIMove _game = fail "mkAIMove not implemented yet!"
+teamEmoji :: Team -> T.Text
+teamEmoji dir =
+  case dir of
+    North     -> "\128309" -- :large_blue_circle: for blue
+    Northeast -> "\128154" -- :green_heart: for green
+    Northwest -> "\128156" -- :purple_heart: for purple
+    South     -> "\128308" -- :red_circle: for red
+    Southeast -> "\9899"   -- :medium_black_circle: for black
+    Southwest -> "\128310" -- :large_orange_diamond: for orange
 
-sendGameState :: HalmaState size -> BotM ()
-sendGameState game = do
+doAIMove :: Match size -> HalmaState size -> BotM ()
+doAIMove match game = do
+  let
+    tc = hsTurnCounter game
+    board = hsBoard game
+    rules = matchRules match
+    numberOfPlayers = length $ tcPlayers tc
+    (currTeam, _) = currentPlayer tc
+    aiMove =
+      if numberOfPlayers == 2 then
+        let
+          (nextTeam, _) = nextPlayer tc
+          perspective = (currTeam, nextTeam)
+        in
+          CompetitiveAI.aiMove rules board perspective
+      else
+        IgnorantAI.aiMove rules board currTeam
+    mAIMoveCmd = moveToMoveCmd rules board aiMove
+  case doMove aiMove game of
+    Left err ->
+      fail $ "doing an AI move failed unexpectedly: " ++ err
+    Right game' -> do
+      let match' = match { matchCurrentGame = Just game' }
+      case mAIMoveCmd of
+        Just moveCmd ->
+          sendMsg $ textMsg $
+            "The AI " <> teamEmoji currTeam <> " makes the following move: " <>
+            showMoveCmd moveCmd
+        Nothing -> pure ()
+      modify $ \botState ->
+        botState { bsMatchState = MatchRunning match' }
+
+sendGameState :: Match size -> HalmaState size -> BotM ()
+sendGameState match game = do
   sendCurrentBoard game
   let
     (dir, player) = currentPlayer (hsTurnCounter game)
-    unicodeSymbol =
-      case dir of
-        North     -> "\128309" -- :large_blue_circle: for blue
-        Northeast -> "\128154" -- :green_heart: for green
-        Northwest -> "\128156" -- :purple_heart: for purple
-        South     -> "\128308" -- :red_circle: for red
-        Southeast -> "\9899"   -- :medium_black_circle: for black
-        Southwest -> "\128310" -- :large_orange_diamond: for orange
+    unicodeSymbol = teamEmoji dir
   case player of
-    AIPlayer -> mkAIMove game
+    AIPlayer -> do
+      doAIMove match game
+      sendMatchState
     TelegramPlayer user ->
       sendMsg $ textMsg $
         showUser user <> " " <> unicodeSymbol <> " it's your turn!"
@@ -361,7 +397,7 @@ sendMatchState = do
         Nothing ->
           sendMsg $ textMsg $
             "Start a new round with /newround"
-        Just game -> sendGameState game
+        Just game -> sendGameState match game
 
 halmaBot :: BotM ()
 halmaBot = do
