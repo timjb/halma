@@ -38,7 +38,7 @@ main =
     [tokenStr, chatId] -> do
       let token = TG.Token (ensureIsPrefixOf "bot" (T.pack tokenStr))
       evalBotM halmaBot (initialBotState (T.pack chatId) token)
-    _ -> do
+    _ ->
       hPutStrLn stderr "Usage: ./halma-bot telegram-token chat-id"
 
 ensureIsPrefixOf :: T.Text -> T.Text -> T.Text
@@ -73,8 +73,8 @@ getUpdates = do
   let
     limit = 100
     timeout = 10
-    updateReq =
-      \token -> TG.getUpdates token (Just nid) (Just limit) (Just timeout)
+    updateReq token =
+      TG.getUpdates token (Just nid) (Just limit) (Just timeout)
   runReq updateReq >>= \case
     Left err -> return (Left err)
     Right (TG.UpdatesResponse updates) -> do
@@ -82,7 +82,7 @@ getUpdates = do
         let nid' = 1 + maximum (map TG.update_id updates)
         modify (\s -> s { bsNextId = nid' })
       return (Right updates)
-  
+
 sendCurrentBoard :: HalmaState size -> BotM ()
 sendCurrentBoard halmaState =
   withRenderedBoardInPngFile halmaState mempty $ \path -> do
@@ -98,7 +98,7 @@ handleCommand cmdCall =
     CmdCall { cmdCallName = "help" } -> do
       sendI18nMsg hlHelpMsg
       pure Nothing
-    CmdCall { cmdCallName = "start" } -> do
+    CmdCall { cmdCallName = "start" } ->
       pure $ Just $ do
         modify $ \botState ->
           botState { bsMatchState = NoMatch }
@@ -125,7 +125,7 @@ handleCommand cmdCall =
     CmdCall { cmdCallName = "undo" } -> do
       matchState <- gets bsMatchState
       case matchState of
-        MatchRunning match@(Match { matchCurrentGame = Just game }) ->
+        MatchRunning match@Match{ matchCurrentGame = Just game } ->
           case undoLastMove game of
             Just game' ->
               let
@@ -138,7 +138,7 @@ handleCommand cmdCall =
               sendMsg $ textMsg "can't undo!"
               pure Nothing
         _ -> do
-          sendMsg $ textMsg $
+          sendMsg $ textMsg
             "can't undo: there's no game running!"
           pure Nothing
     _ -> pure Nothing
@@ -217,7 +217,7 @@ handleMoveCmd match game moveCmd fullMsg = do
             Right game' -> do
               let
                 match' = match { matchCurrentGame = Just game' }
-              pure $ Just $ do
+              pure $ Just $
                 modify $ \botState ->
                   botState { bsMatchState = MatchRunning match' }
 
@@ -230,7 +230,7 @@ handleTextMsg text fullMsg = do
   case (matchState, text) of
     (_, parseCmdCall -> Just cmdCall) ->
       handleCommand cmdCall
-    ( MatchRunning (match@(Match { matchCurrentGame = Just game })), parseMoveCmd -> Right moveCmd) ->
+    ( MatchRunning match@Match { matchCurrentGame = Just game }, parseMoveCmd -> Right moveCmd) ->
       handleMoveCmd match game moveCmd fullMsg
     (GatheringPlayers players, "me") ->
       pure $ Just (addTelegramPlayer players)
@@ -267,7 +267,7 @@ handleTextMsg text fullMsg = do
                   EnoughPlayers $ Configuration grid players
       botState <- get
       case playersSoFar' of
-        EnoughPlayers config@(Configuration _grid (SixPlayers {})) ->
+        EnoughPlayers config@(Configuration _grid SixPlayers{}) ->
           put $ botState { bsMatchState = MatchRunning (newMatch config) }
         _ ->
           put $ botState { bsMatchState = GatheringPlayers playersSoFar' }
@@ -290,7 +290,7 @@ sendI18nMsg getText = do
   sendMsg $ textMsg text -- todo: url link suppression
 
 sendGatheringPlayers :: PlayersSoFar Player -> BotM ()
-sendGatheringPlayers playersSoFar = 
+sendGatheringPlayers playersSoFar =
   case playersSoFar of
     NoPlayers ->
       sendMsg $ textMsgWithKeyboard
@@ -390,14 +390,14 @@ sendMatchState = do
   matchState <- gets bsMatchState
   case matchState of
     NoMatch ->
-      sendMsg $ textMsg $
+      sendMsg $ textMsg
         "Start a new Halma match with /newmatch"
     GatheringPlayers players ->
       sendGatheringPlayers players
     MatchRunning match ->
       case matchCurrentGame match of
         Nothing ->
-          sendMsg $ textMsg $
+          sendMsg $ textMsg
             "Start a new round with /newround"
         Just game -> sendGameState match game
 

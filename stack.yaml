@@ -1,6 +1,8 @@
 flags: {}
 packages:
-- '.'
+- halma
+- halma-gui
+- halma-telegram-bot
 extra-deps:
 - grid-7.8.5
 - mvc-1.1.3
