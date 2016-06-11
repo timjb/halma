@@ -1,6 +1,6 @@
 module Game.Halma.GUI.State
   ( HalmaState (..)
-  , newGame
+  , initialHalmaState
   ) where
 
 import Game.Halma.Board
@@ -10,22 +10,22 @@ import Game.TurnCounter
 
 import Data.Default (def)
 
-data HalmaState size a
+data HalmaState a
   = HalmaState
   { hsRuleOptions :: RuleOptions
-  , hsBoard :: HalmaBoard size
+  , hsBoard :: HalmaBoard
   , hsTurnCounter :: TurnCounter (Team, a)
   , hsLastMoved :: Maybe (Int, Int)
   } deriving (Eq, Show)
 
-newGame :: Configuration size a -> HalmaState size a
-newGame (Configuration halmaGrid nop) =
-  HalmaState
-    { hsRuleOptions = def
-    , hsBoard = initialBoard halmaGrid isActive
-    , hsTurnCounter = newTurnCounter players
-    , hsLastMoved = Nothing
-    }
-  where
-    players = getPlayers nop
-    isActive color = color `elem` (fst <$> players)
+initialHalmaState :: Configuration a -> HalmaState a
+initialHalmaState config =
+  let
+    (board, turnCounter) = newGame config
+  in
+    HalmaState
+      { hsRuleOptions = def
+      , hsBoard = board
+      , hsTurnCounter = turnCounter
+      , hsLastMoved = Nothing
+      }

@@ -14,7 +14,7 @@ import Data.List (sort)
 import Math.Geometry.Grid
 import qualified Data.Map.Strict as M
 
-outcome :: HalmaBoard size -> Move -> HalmaBoard size
+outcome :: HalmaBoard -> Move -> HalmaBoard
 outcome board move =
   case movePiece move board of
     Left err -> error $ "cannot compute outcome: " ++ err
@@ -39,7 +39,7 @@ instance Bounded Rating where
   maxBound = WinIn 0
   minBound = LossIn 0
 
-rateTeam :: Team -> HalmaBoard size -> Rating
+rateTeam :: Team -> HalmaBoard -> Rating
 rateTeam team board
   | hasFinished board team =
       WinIn 0
@@ -51,14 +51,14 @@ rateTeam team board
     distances = map distanceToEndCorner (allOwnPieces board team)
     pieceWeightingList = replicate 12 2 ++ [3..5]
 
-allOwnPieces :: HalmaBoard size -> Team -> [Index (HalmaGrid size)]
+allOwnPieces :: HalmaBoard -> Team -> [Index HalmaGrid]
 allOwnPieces board team =
   map fst $ filter (isMyPiece . snd) $ M.assocs (toMap board)
   where
     isMyPiece piece = pieceTeam piece == team
 
-allLegalMoves :: RuleOptions -> HalmaBoard size -> Team -> [Move]
+allLegalMoves :: RuleOptions -> HalmaBoard -> Team -> [Move]
 allLegalMoves opts board team = do
   piecePos <- allOwnPieces board team
   endPos <- possibleMoves opts board piecePos
-  return (Move { moveFrom = piecePos, moveTo = endPos })
+  pure Move { moveFrom = piecePos, moveTo = endPos }

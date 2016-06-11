@@ -9,7 +9,7 @@ import Game.Halma.AI.Base
 import Data.List (maximumBy)
 import Data.Ord (comparing)
 
-ignorantFixedDepth :: Int -> RuleOptions -> Team -> HalmaBoard size -> Rating
+ignorantFixedDepth :: Int -> RuleOptions -> Team -> HalmaBoard -> Rating
 ignorantFixedDepth n opts team board =
   if n <= 0 then
     rateTeam team board
@@ -31,7 +31,7 @@ beingSomewhatGreedy x y =
       let greedyness = 0.1
       in Rating (greedyness*a + (1-greedyness)*b)
 
-aiMove :: RuleOptions -> HalmaBoard size -> Team -> Move
+aiMove :: RuleOptions -> HalmaBoard -> Team -> Move
 aiMove opts board team =
   if null legalMoves then
     error "There is no legal move."

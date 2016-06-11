@@ -1,13 +1,13 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Game.Halma.Board
-  ( HalmaGridSize (..), HalmaGrid (..)
+  ( HalmaGrid (..)
   , sideLength, numberOfFields
   , HalmaDirection (..)
   , oppositeDirection
@@ -32,61 +32,40 @@ import Data.Maybe (fromJust)
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
 import qualified Data.Map.Strict as M
 import qualified Math.Geometry.Grid as Grid
 import qualified Math.Geometry.GridInternal as Grid
 import qualified Math.Geometry.Grid.Hexagonal as HexGrid
 import qualified Math.Geometry.Grid.HexagonalInternal as HexGrid
 
-data HalmaGridSize = S | L
+data HalmaGrid
+  = SmallGrid
+  | LargeGrid
+  deriving (Eq, Show, Ord)
 
-data HalmaGrid :: HalmaGridSize -> * where
-  SmallGrid :: HalmaGrid 'S
-  LargeGrid :: HalmaGrid 'L
-
-instance Eq (HalmaGrid size) where
-  _ == _ = True
-
-instance Ord (HalmaGrid size) where
-  _ `compare` _ = EQ
-
-instance Show (HalmaGrid size) where
-  show SmallGrid = "SmallGrid"
-  show LargeGrid = "LargeGrid"
-
-instance A.ToJSON (HalmaGrid size) where
+instance A.ToJSON HalmaGrid where
   toJSON grid =
     case grid of
       SmallGrid -> "SmallGrid"
       LargeGrid -> "LargeGrid"
 
-instance A.FromJSON (HalmaGrid 'S) where
+instance A.FromJSON HalmaGrid where
   parseJSON =
-    A.withText "HalmaGrid 'S" $ \text ->
-      if text == "SmallGrid" then
-        pure SmallGrid
-      else
-        fail "expected the string 'SmallGrid'"
-
-instance A.FromJSON (HalmaGrid 'L) where
-  parseJSON =
-    A.withText "HalmaGrid 'L" $ \text ->
-      if text == "LargeGrid" then
-        pure LargeGrid
-      else
-        fail "expected the string 'LargeGrid'"
+    A.withText "HalmaGrid" $ \case
+      "SmallGrid" -> pure SmallGrid
+      "LargeGrid" -> pure LargeGrid
+      _other -> fail "expected string 'SmallGrid' or 'LargeGrid'"
 
 -- | Numbers of fields on each straight edge of a star-shaped halma board of the
 -- given size.
-sideLength :: HalmaGrid size -> Int
+sideLength :: HalmaGrid -> Int
 sideLength grid =
   case grid of
     SmallGrid -> 5
     LargeGrid -> 6
 
 -- | Total number of fields on a halma board of the given size.
-numberOfFields :: HalmaGrid size -> Int
+numberOfFields :: HalmaGrid -> Int
 numberOfFields grid =
   case grid of
     SmallGrid -> 121
@@ -171,20 +150,21 @@ rowsInDirection dir =
       -- Precondition: det(M) = 1/det(M), i.e. det(M) `elem` [-1,1].
       let det = a*d - b*c
       in det * (x*(d-b) + y*(a-c))
-        
+
 -- | The corner corresponding to a direction on a star-shaped board of the
 -- given size.
-corner :: HalmaGrid size -> HalmaDirection -> (Int, Int)
+corner :: HalmaGrid -> HalmaDirection -> (Int, Int)
 corner halmaGrid direction = (sl*x, sl*y)
   where
     (d1, d2) = getDirs direction
     sl = sideLength halmaGrid - 1
     (x, y) = neighbour' d1 $ neighbour' d2 (0, 0)
 
-instance Grid.Grid (HalmaGrid size) where
-  type Index (HalmaGrid size) = (Int, Int)
-  type Direction (HalmaGrid size) = HexGrid.HexDirection
-  indices halmaGrid = filter (Grid.contains halmaGrid) roughBoard
+instance Grid.Grid HalmaGrid where
+  type Index HalmaGrid = (Int, Int)
+  type Direction HalmaGrid = HexGrid.HexDirection
+  indices halmaGrid =
+    filter (Grid.contains halmaGrid) roughBoard
     where
       sl = sideLength halmaGrid - 1
       roughBoard = Grid.indices (HexGrid.hexHexGrid (2*sl + 1))
@@ -201,43 +181,40 @@ instance Grid.Grid (HalmaGrid size) where
       atLeastTwo False True True = True
       atLeastTwo _ _ _ = False
 
-instance Grid.FiniteGrid (HalmaGrid 'S) where
-  type Size (HalmaGrid 'S) = ()
-  size _ = ()
-  maxPossibleDistance _ = 16
+instance Grid.FiniteGrid HalmaGrid where
+  type Size HalmaGrid = HalmaGrid
+  size = id
+  maxPossibleDistance = \case
+    SmallGrid -> 16
+    LargeGrid -> 20
 
-instance Grid.FiniteGrid (HalmaGrid 'L) where
-  type Size (HalmaGrid 'L) = ()
-  size _ = ()
-  maxPossibleDistance _ = 20
-
-instance Grid.BoundedGrid (HalmaGrid size) where
+instance Grid.BoundedGrid HalmaGrid where
   tileSideCount _ = 6
 
 -- | The corner where the team starts.
 type Team = HalmaDirection
 
 -- | The position of the corner field where a team starts.
-startCorner :: HalmaGrid size -> Team -> (Int, Int)
+startCorner :: HalmaGrid -> Team -> (Int, Int)
 startCorner = corner
 
 -- | The position of the end zone corner of a team.
-endCorner :: HalmaGrid size -> Team -> (Int, Int)
+endCorner :: HalmaGrid -> Team -> (Int, Int)
 endCorner halmaGrid = corner halmaGrid . oppositeDirection
 
 -- | The start positions of a team's pieces.
-startFields :: HalmaGrid size -> Team -> [(Int, Int)]
+startFields :: HalmaGrid -> Team -> [(Int, Int)]
 startFields halmaGrid team = filter ((<= 4) . dist) (Grid.indices halmaGrid)
   where dist = Grid.distance halmaGrid (startCorner halmaGrid team)
 
 -- | The end zone of the given team.
-endFields :: HalmaGrid size -> Team -> [(Int, Int)]
+endFields :: HalmaGrid -> Team -> [(Int, Int)]
 endFields halmaGrid = startFields halmaGrid . oppositeDirection
 
 -- | Halma gaming piece
 data Piece
   = Piece
-  { pieceTeam :: Team  -- ^ player 
+  { pieceTeam :: Team  -- ^ player
   , pieceNumber :: Word8 -- ^ number between 1 and 15
   } deriving (Show, Eq, Ord)
 
@@ -255,21 +232,16 @@ instance A.FromJSON Piece where
       number <- o .: "number"
       unless (1 <= number && number <= 15) $
         fail "pieces must have a number between 1 and 15!"
-      pure $ Piece { pieceTeam = team, pieceNumber = number }
-          
+      pure Piece { pieceTeam = team, pieceNumber = number }
 
 -- | Map from board positions to the team occupying that position.
-data HalmaBoard size =
+data HalmaBoard =
   HalmaBoard
-  { getGrid :: HalmaGrid size
+  { getGrid :: HalmaGrid
   , toMap :: M.Map (Int, Int) Piece
-  } deriving (Eq)
+  } deriving (Eq, Show)
 
-instance Show (HalmaBoard size) where
-  show (HalmaBoard halmaGrid m) =
-    "fromMap " ++ show halmaGrid ++ " (" ++ show m ++ ")"
-
-instance A.ToJSON (HalmaBoard size) where
+instance A.ToJSON HalmaBoard where
   toJSON board =
     A.object
       [ "grid" .= A.toJSON (getGrid board)
@@ -283,39 +255,30 @@ instance A.ToJSON (HalmaBoard size) where
           , "piece" .= A.toJSON piece
           ]
 
-parseHalmaBoardFromJSON
-  :: A.FromJSON (HalmaGrid size)
-  => A.Value
-  -> A.Parser (HalmaBoard size)
-parseHalmaBoardFromJSON =
-  A.withObject "HalmaGrid size" $ \o -> do
-    grid <- o .: "grid"
-    fieldVals <- o .: "occupied_fields"
-    fieldsMap <- M.fromList <$> mapM parseFieldFromJSON fieldVals
-    case fromMap grid fieldsMap of
-      Just board -> pure board
-      Nothing ->
-        fail "the JSON describing the occupied fields violates some invariant!"
-  where
-    parseFieldFromJSON =
-      A.withObject "field" $ \o -> do
-        x <- o .: "x"
-        y <- o .: "y"
-        piece <- o .: "piece"
-        pure ((x, y), piece)
-
-instance  A.FromJSON (HalmaBoard 'S) where
-  parseJSON = parseHalmaBoardFromJSON
-
-instance  A.FromJSON (HalmaBoard 'L) where
-  parseJSON = parseHalmaBoardFromJSON
+instance A.FromJSON HalmaBoard where
+  parseJSON =
+    A.withObject "HalmaGrid size" $ \o -> do
+      grid <- o .: "grid"
+      fieldVals <- o .: "occupied_fields"
+      fieldsMap <- M.fromList <$> mapM parseFieldFromJSON fieldVals
+      case fromMap grid fieldsMap of
+        Just board -> pure board
+        Nothing ->
+          fail "the JSON describing the occupied fields violates some invariant!"
+    where
+      parseFieldFromJSON =
+        A.withObject "field" $ \o -> do
+          x <- o .: "x"
+          y <- o .: "y"
+          piece <- o .: "piece"
+          pure ((x, y), piece)
 
 -- | Construct halma boards. Satisfies
 -- @fromMap (getGrid board) (toMap board) = Just board@.
 fromMap
-  :: HalmaGrid size
-  -> M.Map (Grid.Index (HalmaGrid size)) Piece
-  -> Maybe (HalmaBoard size)
+  :: HalmaGrid
+  -> M.Map (Grid.Index HalmaGrid) Piece
+  -> Maybe HalmaBoard
 fromMap halmaGrid m =
   if invariantsHold then
     Just (HalmaBoard halmaGrid m)
@@ -331,8 +294,8 @@ fromMap halmaGrid m =
       let teamPieces = filter ((== team) . pieceTeam) (map snd list)
       in null teamPieces || sort teamPieces == map (Piece team) [1..15]
 
--- | Lookup whether a position on the board is occupied, and 
-lookupHalmaBoard :: (Int, Int) -> HalmaBoard size -> Maybe Piece
+-- | Lookup whether a position on the board is occupied, and
+lookupHalmaBoard :: (Int, Int) -> HalmaBoard -> Maybe Piece
 lookupHalmaBoard p = M.lookup p . toMap
 
 -- | A move of piece on a (Halma) board.
@@ -356,7 +319,7 @@ instance A.FromJSON Move where
     A.withObject "Move" $ \o -> do
       from <- parseCoordsFromJSON =<< o .: "from"
       to <- parseCoordsFromJSON =<< o .: "to"
-      pure $ Move { moveFrom = from, moveTo = to }
+      pure Move { moveFrom = from, moveTo = to }
     where
       parseCoordsFromJSON =
         A.withObject "(Int, Int)" $ \o ->
@@ -366,9 +329,9 @@ instance A.FromJSON Move where
 -- move is valid according to the Halma rules.
 movePiece
   :: Move
-  -> HalmaBoard size
-  -> Either String (HalmaBoard size)
-movePiece (Move { moveFrom = startPos, moveTo = endPos }) (HalmaBoard halmaGrid m) =
+  -> HalmaBoard
+  -> Either String HalmaBoard
+movePiece Move { moveFrom = startPos, moveTo = endPos } (HalmaBoard halmaGrid m) =
   case M.lookup startPos m of
     Nothing -> Left "cannot make move: start position is empty"
     Just piece ->
@@ -381,7 +344,7 @@ movePiece (Move { moveFrom = startPos, moveTo = endPos }) (HalmaBoard halmaGrid 
           let m' = M.insert endPos piece (M.delete startPos m)
           in Right (HalmaBoard halmaGrid m')
 
-initialBoard :: HalmaGrid size -> (Team -> Bool) -> HalmaBoard size
+initialBoard :: HalmaGrid -> (Team -> Bool) -> HalmaBoard
 initialBoard halmaGrid chosenTeams = HalmaBoard halmaGrid (M.fromList lineUps)
   where
     allTeams = [minBound..maxBound]

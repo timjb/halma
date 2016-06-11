@@ -13,7 +13,7 @@ import Control.Monad (guard)
 import Data.Aeson ((.=), (.:))
 import Data.Default
 import Data.Function (on)
-import Data.Maybe (catMaybes, isJust, isNothing)
+import Data.Maybe (mapMaybe, isJust, isNothing)
 import Data.Monoid ((<>))
 import Math.Geometry.Grid
 import qualified Data.Aeson as A
@@ -33,7 +33,7 @@ instance A.ToJSON MoveRestriction where
       Temporarily -> "temporarily"
       Forbidden -> "forbidden"
 
-instance A.FromJSON MoveRestriction where  
+instance A.FromJSON MoveRestriction where
   parseJSON =
     A.withText "MoveRestriction" $ \text ->
       case text of
@@ -60,7 +60,7 @@ instance A.FromJSON RuleOptions where
     A.withObject "RuleOptions" $ \o -> do
       bw <- o .: "moving_backwards"
       inv <- o .: "invading"
-      pure $ RuleOptions { movingBackwards = bw, invading = inv }
+      pure RuleOptions { movingBackwards = bw, invading = inv }
 
 instance Default RuleOptions where
   def = RuleOptions { movingBackwards = Temporarily, invading = Allowed }
@@ -69,14 +69,14 @@ filterForward :: (Int, Int) -> HalmaDirection -> [(Int, Int)] -> [(Int, Int)]
 filterForward startPos halmaDir =
   filter $ ((>=) `on` rowsInDirection halmaDir) startPos
 
-filterNonInvading :: Team -> HalmaGrid size -> [(Int, Int)] -> [(Int, Int)]
+filterNonInvading :: Team -> HalmaGrid -> [(Int, Int)] -> [(Int, Int)]
 filterNonInvading team grid = filter $ \field -> all
-  ((<= sideLength grid - 1) . abs . flip rowsInDirection field) 
+  ((<= sideLength grid - 1) . abs . flip rowsInDirection field)
   [leftOf team, leftOf (leftOf team)]
- 
+
 possibleStepMoves
   :: RuleOptions
-  -> HalmaBoard size
+  -> HalmaBoard
   -> (Int, Int)
   -> [(Int, Int)]
 possibleStepMoves ruleOptions halmaBoard startPos =
@@ -98,7 +98,7 @@ possibleStepMoves ruleOptions halmaBoard startPos =
 
 possibleJumpMoves
   :: RuleOptions
-  -> HalmaBoard size
+  -> HalmaBoard
   -> (Int, Int)
   -> [(Int, Int)]
 possibleJumpMoves ruleOptions halmaBoard startPos =
@@ -121,7 +121,7 @@ possibleJumpMoves ruleOptions halmaBoard startPos =
       return next2
     nextJumpTargets team pos =
       continualRuleOptsFilters team pos $
-      catMaybes (map (maybeJump pos) hexDirections)
+      mapMaybe (maybeJump pos) hexDirections
     allJumpTargets team =
       iter S.empty (nextJumpTargets team startPos)
       where
@@ -150,13 +150,13 @@ possibleJumpMoves ruleOptions halmaBoard startPos =
 -- | Computes all possible moves for a piece.
 possibleMoves
   :: RuleOptions
-  -> HalmaBoard size
+  -> HalmaBoard
   -> (Int, Int)
   -> [(Int, Int)]
 possibleMoves = possibleStepMoves <> possibleJumpMoves
 
 -- | Has a team all of it's pieces in the end zone?
-hasFinished :: HalmaBoard size -> Team -> Bool
+hasFinished :: HalmaBoard -> Team -> Bool
 hasFinished halmaBoard team =
   all hasPieceFromTheRightTeam (endFields (getGrid halmaBoard) team)
   where

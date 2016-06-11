@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -33,7 +32,6 @@ import Game.TurnCounter
 import Data.Aeson ((.=), (.:))
 import Data.Monoid ((<>))
 import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
@@ -87,7 +85,7 @@ instance A.FromJSON PlayerResult where
     A.withObject "PlayerResult" $ \o -> do
       player <- o .: "player"
       count <- o .: "count"
-      pure $ PlayerResult { prPlayer = player, prCount = count }
+      pure PlayerResult { prPlayer = player, prCount = count }
 
 newtype GameResult
   = GameResult
@@ -123,16 +121,16 @@ instance A.FromJSON Party where
     A.withObject "Party" $ \o -> do
       homeCorner <- o .: "home_corner"
       player <- o .: "player"
-      pure $ Party { partyHomeCorner = homeCorner, partyPlayer = player }
+      pure Party { partyHomeCorner = homeCorner, partyPlayer = player }
 
-data HalmaState size
+data HalmaState
   = HalmaState
-  { hsBoard :: HalmaBoard size
+  { hsBoard :: HalmaBoard
   , hsTurnCounter :: TurnCounter Party
   , hsLastMove :: Maybe Move
   } deriving (Eq, Show)
 
-instance A.ToJSON (HalmaState size) where
+instance A.ToJSON HalmaState where
   toJSON game =
     A.object
       [ "board" .= hsBoard game
@@ -141,64 +139,56 @@ instance A.ToJSON (HalmaState size) where
       , "last_move" .= hsLastMove game
       ]
 
-parseHalmaStateFromJSON
-  :: (A.FromJSON (HalmaBoard size))
-  => A.Value
-  -> A.Parser (HalmaState size)
-parseHalmaStateFromJSON =
-  A.withObject "HalmaState size" $ \o -> do
-    board <- o .: "board"
-    parties <- o .: "parties"
-    totalMoves <- o .: "total_moves"
-    mLastMove <- o .: "last_move"
-    let
-      turnCounter =
-        TurnCounter
-          { tcPlayers = parties
-          , tcCounter = totalMoves
+instance A.FromJSON HalmaState where
+  parseJSON =
+    A.withObject "HalmaState" $ \o -> do
+      board <- o .: "board"
+      parties <- o .: "parties"
+      totalMoves <- o .: "total_moves"
+      mLastMove <- o .: "last_move"
+      let
+        turnCounter =
+          TurnCounter
+            { tcPlayers = parties
+            , tcCounter = totalMoves
+            }
+      pure
+        HalmaState
+          { hsBoard = board
+          , hsTurnCounter = turnCounter
+          , hsLastMove = mLastMove
           }
-    pure $
-      HalmaState
-        { hsBoard = board
-        , hsTurnCounter = turnCounter
-        , hsLastMove = mLastMove
-        }
 
-instance A.FromJSON (HalmaState 'S) where
-  parseJSON = parseHalmaStateFromJSON
-
-instance A.FromJSON (HalmaState 'L) where
-  parseJSON = parseHalmaStateFromJSON
-
-newGame :: Configuration size Player -> HalmaState size
-newGame (Configuration halmaGrid nop) =
-  HalmaState
-    { hsBoard = initialBoard halmaGrid isActive
-    , hsTurnCounter = newTurnCounter parties
-    , hsLastMove = Nothing
-    }
+initialHalmaState :: Configuration Player -> HalmaState
+initialHalmaState config =
+  let
+    (board, turnCounter) = newGame config
+  in
+    HalmaState
+      { hsBoard = board
+      , hsTurnCounter = toParty <$> turnCounter
+      , hsLastMove = Nothing
+      }
   where
-    parties = toParty <$> getPlayers nop
     toParty (dir, player) = Party { partyPlayer = player, partyHomeCorner = dir }
-    isActive color = color `elem` (partyHomeCorner <$> parties)
 
-doMove :: Move -> HalmaState size -> Either String (HalmaState size)
+doMove :: Move -> HalmaState -> Either String HalmaState
 doMove move state =
   case movePiece move (hsBoard state) of
     Left err -> Left err
     Right board' ->
-      Right $
+      Right
         HalmaState
           { hsBoard = board'
           , hsTurnCounter = nextTurn (hsTurnCounter state)
           , hsLastMove = Just move
           }
 
-undoLastMove :: HalmaState size -> Maybe (HalmaState size)
+undoLastMove :: HalmaState -> Maybe HalmaState
 undoLastMove state = do
   move <- hsLastMove state
   board' <- eitherToMaybe $ movePiece (invertMove move) (hsBoard state)
-  Just $
+  Just
     HalmaState
       { hsBoard = board'
       , hsTurnCounter = previousTurn (hsTurnCounter state)
@@ -206,18 +196,18 @@ undoLastMove state = do
       }
   where
     eitherToMaybe = either (const Nothing) Just
-    invertMove (Move { moveFrom = from, moveTo = to }) =
+    invertMove Move { moveFrom = from, moveTo = to } =
       Move { moveFrom = to, moveTo = from }
 
-data Match size
+data Match
   = Match
-  { matchConfig :: Configuration size Player
+  { matchConfig :: Configuration Player
   , matchRules :: RuleOptions
   , matchHistory :: [GameResult]
-  , matchCurrentGame :: Maybe (HalmaState size)
+  , matchCurrentGame :: Maybe HalmaState
   } deriving (Show)
 
-instance A.ToJSON (Match size) where
+instance A.ToJSON Match where
   toJSON match =
     A.object
       [ "config" .= matchConfig match
@@ -226,37 +216,28 @@ instance A.ToJSON (Match size) where
       , "current_game" .= matchCurrentGame match
       ]
 
-parseMatchFromJSON
-  :: (A.FromJSON (Configuration size Player), A.FromJSON (HalmaState size))
-  => A.Value
-  -> A.Parser (Match size)
-parseMatchFromJSON =
-  A.withObject "Match size" $ \o -> do
-    config <- o .: "config"
-    rules <- o .: "rules"
-    history <- o .: "history"
-    currentGame <- o .: "current_game"
-    pure $
-      Match
-        { matchConfig = config
-        , matchRules = rules
-        , matchHistory = history
-        , matchCurrentGame = currentGame
-        }
+instance A.FromJSON Match where
+  parseJSON =
+    A.withObject "Match size" $ \o -> do
+      config <- o .: "config"
+      rules <- o .: "rules"
+      history <- o .: "history"
+      currentGame <- o .: "current_game"
+      pure
+        Match
+          { matchConfig = config
+          , matchRules = rules
+          , matchHistory = history
+          , matchCurrentGame = currentGame
+          }
 
-instance A.FromJSON (Match 'S) where
-  parseJSON = parseMatchFromJSON
-
-instance A.FromJSON (Match 'L) where
-  parseJSON = parseMatchFromJSON
-
-newMatch :: Configuration size Player -> Match size
+newMatch :: Configuration Player -> Match
 newMatch config =
   Match
     { matchConfig = config
     , matchRules = rules
     , matchHistory = []
-    , matchCurrentGame = Just (newGame config)
+    , matchCurrentGame = Just (initialHalmaState config)
     }
   where
     rules =
@@ -268,14 +249,14 @@ newMatch config =
 data PlayersSoFar a
   = NoPlayers
   | OnePlayer a
-  | forall size. EnoughPlayers (Configuration size a)
+  | EnoughPlayers (Configuration a)
 
 deriving instance Show a => Show (PlayersSoFar a)
 
 data MatchState
   = NoMatch
   | GatheringPlayers (PlayersSoFar Player)
-  | forall size. MatchRunning (Match size)
+  | MatchRunning Match
 
 deriving instance Show MatchState
 

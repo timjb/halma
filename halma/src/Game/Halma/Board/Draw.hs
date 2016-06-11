@@ -25,8 +25,8 @@ defaultTeamColours team =
 -- Supports querying for field positions.
 drawBoard'
   :: (V b ~ V2, N b ~ Double, Renderable (Path V2 Double) b)
-  => HalmaGrid size
-  -> ((Int,Int) -> Diagram b)
+  => HalmaGrid
+  -> ((Int, Int) -> Diagram b)
   -> QDiagram b V2 Double (Option (Last (Int, Int)))
 drawBoard' grid drawField =
     targets `atop`
@@ -53,7 +53,7 @@ drawBoard' grid drawField =
 -- positions.
 drawBoard
   :: (V b ~ V2, N b ~ Double, Renderable (Path V2 Double) b)
-  => HalmaBoard size
+  => HalmaBoard
   -> (Team -> Colour Double)
   -> QDiagram b V2 Double (Option (Last (Int, Int)))
 drawBoard halmaBoard teamColours = drawBoard' (getGrid halmaBoard) drawField
@@ -62,4 +62,3 @@ drawBoard halmaBoard teamColours = drawBoard' (getGrid halmaBoard) drawField
       let c = teamColours (pieceTeam piece)
       in circle 0.25 # fc c # lc (darken 0.5 c)
     drawField = maybe mempty drawPiece . flip lookupHalmaBoard halmaBoard
-

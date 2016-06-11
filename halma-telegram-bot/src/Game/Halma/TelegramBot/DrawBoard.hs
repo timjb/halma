@@ -28,7 +28,7 @@ type BoardLabels = M.Map (Int, Int) T.Text
 
 withRenderedBoardInPngFile
   :: (MonadIO m, MonadMask m)
-  => HalmaState size
+  => HalmaState
   -> BoardLabels
   -> (FilePath -> m a)
   -> m a
@@ -46,7 +46,7 @@ withRenderedBoardInPngFile game labels action =
         liftIO (hClose fileHandle)
         handler filePath
 
-drawBoardForChat :: HalmaState size -> BoardLabels -> D.Diagram Cairo
+drawBoardForChat :: HalmaState -> BoardLabels -> D.Diagram Cairo
 drawBoardForChat game labels =
   let
     boardDia = resetValue (drawBoard' (getGrid board) drawField)

@@ -39,21 +39,25 @@ centered spec d = transform adjustT d
     adjustT = translation $ (0.5 *. P (specToSize 0 spec)) .-. centerPoint d
 sizedCentered spec = centered spec . sized spec
 
-data State where
-  State :: Configuration size () -> Maybe (HalmaState size ()) -> State
-
-deriving instance Show State
+data State
+  = State
+  { stateConfig :: Configuration ()
+  , stateGame :: Maybe (HalmaState ())
+  } deriving (Show)
 
 startNewGame :: State -> State
-startNewGame (State config _) =
-  State config (Just (newGame config))
+startNewGame state =
+  State
+    { stateConfig = stateConfig state
+    , stateGame = Just (initialHalmaState (stateConfig state))
+    }
 
 initialState :: State
-initialState = State defaultConfiguration Nothing
+initialState = State (twoPlayersOnSmallGrid () ()) Nothing
 
 data HalmaViewState size
   = HalmaViewState
-  { hvsBoard :: HalmaBoard size
+  { hvsBoard :: HalmaBoard
   , hvsSelectedField :: Maybe (Int, Int)
   , hvsHighlightedFields :: [(Int, Int)]
   , hvsLastMoved :: Maybe (Int, Int)
@@ -62,7 +66,7 @@ data HalmaViewState size
   } deriving (Eq, Show)
 
 data ViewState where
-  MenuView  :: Configuration size () -> ViewState
+  MenuView  :: Configuration () -> ViewState
   HalmaView :: HalmaViewState size -> ViewState
 
 deriving instance Show ViewState
@@ -79,7 +83,7 @@ data AIType
 
 data ViewEvent
   = Quit QuitType
-  | SetConfiguration (SomeConfiguration ())
+  | SetConfiguration (Configuration ())
   | NewGame
   | FieldClick (Int, Int)
   | EmptyClick
@@ -161,52 +165,55 @@ playerFinishedSign color = (label <> background) # value (Option Nothing) # padX
 
 renderMenu
   :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
-  => Configuration size ()
-  -> QDiagram b V2 Double (Option (Last (SomeConfiguration ())))
-renderMenu (Configuration gridSize nop) =
+  => Configuration ()
+  -> QDiagram b V2 Double (Option (Last (Configuration ())))
+renderMenu config =
   ((===) `F.on` (centerX . horizontal)) sizeButtons playerButtons
   where
-    setPlayers = SomeConfiguration . Configuration gridSize
-    playerButtonAction nop' = if nop == nop' then ButtonSelected else ButtonActive (setPlayers nop')
+    configButtonAction config' =
+      if config == config' then
+        ButtonSelected
+      else
+        ButtonActive config'
     horizontal = foldl (|||) mempty
     (sizeButtons, playerButtons) = allButtons
     allButtons
       :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
-      => ( [ QDiagram b V2 Double (Option (Last (SomeConfiguration ()))) ]
-         , [ QDiagram b V2 Double (Option (Last (SomeConfiguration ()))) ]
+      => ( [ QDiagram b V2 Double (Option (Last (Configuration ()))) ]
+         , [ QDiagram b V2 Double (Option (Last (Configuration ()))) ]
          )
-    allButtons = case gridSize of
+    allButtons = case configurationGrid config of
       SmallGrid ->
         let
           nopL =
-            case nop of
+            case configurationPlayers config of
               TwoPlayers () () -> TwoPlayers () ()
-              ThreePlayers () () () -> ThreePlayers () () () 
+              ThreePlayers () () () -> ThreePlayers () () ()
               _ -> error "impossible"
         in
           ( [ button "Small Grid" ButtonSelected
-            , button "Large Grid" $ ButtonActive $ SomeConfiguration $ Configuration LargeGrid nopL
+            , button "Large Grid" $ ButtonActive $ setLargeGrid config
             ]
-          , [ button "Two Players" $ playerButtonAction twoPlayers
-            , button "Three Players" $ playerButtonAction threePlayers
+          , [ button "Two Players" $ configButtonAction $ twoPlayersOnSmallGrid () ()
+            , button "Three Players" $ configButtonAction $ threePlayersOnSmallGrid () () ()
             ] ++ map (flip button ButtonInactive) ["Four Players", "Five Players", "Six Players"]
           )
       LargeGrid ->
         let
-          nopS =
-            case nop of
-              TwoPlayers () () -> twoPlayers
-              _ -> threePlayers
+          smallConfig =
+            case configurationPlayers config of
+              TwoPlayers () () -> twoPlayersOnSmallGrid () ()
+              _ -> threePlayersOnSmallGrid () () ()
         in
-          ( [ button "Small Grid" $ ButtonActive $ SomeConfiguration $ Configuration SmallGrid nopS
+          ( [ button "Small Grid" $ ButtonActive smallConfig
             , button "Large Grid" ButtonSelected
             ]
-          , map (\(numStr, nop') -> button (numStr ++ " Players") (playerButtonAction nop')) $
-            [ ("Two", twoPlayers)
-            , ("Three", threePlayers)
-            , ("Four", fourPlayers)
-            , ("Five", fivePlayers)
-            , ("Six", sixPlayers)
+          , map (\(numStr, players') -> button (numStr ++ " Players") (configButtonAction (playersOnLargeGrid players'))) $
+            [ ("Two", TwoPlayers () ())
+            , ("Three", ThreePlayers () () ())
+            , ("Four", FourPlayers () () () ())
+            , ("Five", FivePlayers () () () () ())
+            , ("Six", SixPlayers () () () () () ())
             ]
           )
 
@@ -295,8 +302,8 @@ external = managed $ \f -> do
   wait res
 
 gameLoop
-  :: Configuration size ()
-  -> HalmaState size ()
+  :: Configuration ()
+  -> HalmaState ()
   -> Pipe ViewEvent (HalmaViewState size) (MS.State State) QuitType
 gameLoop config halmaState = noSelectionLoop
   where
@@ -310,7 +317,7 @@ gameLoop config halmaState = noSelectionLoop
     finishedPlayers = filter (hasFinished board) (fst <$> tcPlayers turnCounter)
     competitiveAIAllowed = length (tcPlayers turnCounter) == 2
     noSelectionLoop = do
-      yield $
+      yield
         HalmaViewState
         { hvsBoard = board
         , hvsSelectedField = Nothing
@@ -336,7 +343,7 @@ gameLoop config halmaState = noSelectionLoop
         _ -> return QuitApp
     selectionLoop startPos = do
       let possible = possibleMoves ruleOptions board startPos
-      yield $
+      yield
         HalmaViewState
           { hvsBoard = board
           , hvsSelectedField = Just startPos
@@ -349,7 +356,7 @@ gameLoop config halmaState = noSelectionLoop
       case event of
         EmptyClick -> noSelectionLoop
         FieldClick p | p `elem` possible ->
-          performMove (Move { moveFrom = startPos, moveTo = p})
+          performMove Move { moveFrom = startPos, moveTo = p}
         FieldClick p | (pieceTeam <$> lookupHalmaBoard p board) == Just team ->
           selectionLoop p
         FieldClick _ -> noSelectionLoop
@@ -381,7 +388,7 @@ pipe = do
       yield $ MenuView config
       event <- await
       case event of
-        SetConfiguration (SomeConfiguration config') ->
+        SetConfiguration config' ->
           MS.put (State config' Nothing) >> pipe
         NewGame -> MS.put (startNewGame st) >> pipe
         _ -> pipe

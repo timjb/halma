@@ -14,7 +14,7 @@ type Perspective = (Team, Team)
 flipPersp :: Perspective -> Perspective
 flipPersp (t0, t1) = (t1, t0)
 
-rate :: Perspective -> HalmaBoard size -> Rating
+rate :: Perspective -> HalmaBoard -> Rating
 rate (t0, t1) board = rateTeam t0 board `against` rateTeam t1 board
   where
     (WinIn n) `against` _ = WinIn n
@@ -22,15 +22,15 @@ rate (t0, t1) board = rateTeam t0 board `against` rateTeam t1 board
     (Rating r0) `against` (Rating r1) = Rating (r0 - r1)
     _ `against` _ = error "unexpected team rating indicating loss"
 
-aiMove :: RuleOptions -> HalmaBoard size -> Perspective -> Move
+aiMove :: RuleOptions -> HalmaBoard -> Perspective -> Move
 aiMove opts board persp =
-  snd $ prunedMinMaxSearch 3 opts board persp Nothing 
+  snd $ prunedMinMaxSearch 3 opts board persp Nothing
 
 -- | Find the best move or one that reaches the given bound.
 prunedMinMaxSearch
   :: Int
   -> RuleOptions
-  -> HalmaBoard size
+  -> HalmaBoard
   -> Perspective
   -> Maybe Rating
   -> (Rating, Move)

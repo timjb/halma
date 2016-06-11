@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module Game.TurnCounter
   ( TurnCounter (..)
   , newTurnCounter
@@ -13,7 +15,7 @@ data TurnCounter p
   = TurnCounter
   { tcPlayers :: [p]
   , tcCounter :: Int
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Functor)
 
 newTurnCounter :: [p] -> TurnCounter p
 newTurnCounter players =

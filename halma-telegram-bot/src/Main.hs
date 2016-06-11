@@ -83,7 +83,7 @@ getUpdates = do
         modify (\s -> s { bsNextId = nid' })
       return (Right updates)
 
-sendCurrentBoard :: HalmaState size -> BotM ()
+sendCurrentBoard :: HalmaState -> BotM ()
 sendCurrentBoard halmaState =
   withRenderedBoardInPngFile halmaState mempty $ \path -> do
     chatId <- gets bsChatId
@@ -146,7 +146,7 @@ handleCommand cmdCall =
 sendMoveSuggestions
   :: TG.User
   -> TG.Message
-  -> HalmaState size
+  -> HalmaState
   -> NonEmpty (MoveCmd, Move)
   -> BotM ()
 sendMoveSuggestions sender msg game suggestions = do
@@ -177,8 +177,8 @@ sendMoveSuggestions sender msg game suggestions = do
     logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleMoveCmd
-  :: Match size
-  -> HalmaState size
+  :: Match
+  -> HalmaState
   -> MoveCmd
   -> TG.Message
   -> BotM (Maybe (BotM ()))
@@ -246,28 +246,19 @@ handleTextMsg text fullMsg = do
   where
     addPlayer :: Player -> PlayersSoFar Player -> BotM ()
     addPlayer new playersSoFar = do
-      let
-        playersSoFar' =
-          case playersSoFar of
-            NoPlayers ->
-              OnePlayer new
-            OnePlayer a ->
-              EnoughPlayers (Configuration SmallGrid (TwoPlayers a new))
-            EnoughPlayers (Configuration grid players) ->
-              case players of
-                TwoPlayers a b ->
-                  EnoughPlayers $ Configuration grid (ThreePlayers a b new)
-                ThreePlayers a b c ->
-                  EnoughPlayers $ Configuration LargeGrid (FourPlayers a b c new)
-                FourPlayers a b c d ->
-                  EnoughPlayers $ Configuration LargeGrid (FivePlayers a b c d new)
-                FivePlayers a b c d e ->
-                  EnoughPlayers $ Configuration LargeGrid (SixPlayers a b c d e new)
-                SixPlayers {} ->
-                  EnoughPlayers $ Configuration grid players
+      playersSoFar' <-
+        case playersSoFar of
+          NoPlayers ->
+            pure $ OnePlayer new
+          OnePlayer a ->
+            case configuration SmallGrid (TwoPlayers a new) of
+              Just config -> pure $ EnoughPlayers config
+              Nothing -> fail "could not create configuration with two players and small grid!"
+          EnoughPlayers config ->
+            pure $ EnoughPlayers (addPlayerToConfig new config)
       botState <- get
       case playersSoFar' of
-        EnoughPlayers config@(Configuration _grid SixPlayers{}) ->
+        EnoughPlayers config@(configurationPlayers -> SixPlayers{}) ->
           put $ botState { bsMatchState = MatchRunning (newMatch config) }
         _ ->
           put $ botState { bsMatchState = GatheringPlayers playersSoFar' }
@@ -303,9 +294,9 @@ sendGatheringPlayers playersSoFar =
           "Who is the second player?"
       in
         sendMsg (textMsgWithKeyboard text meKeyboard)
-    EnoughPlayers (Configuration _grid players) -> do
+    EnoughPlayers config -> do
       (count, nextOrdinal) <-
-        case players of
+        case configurationPlayers config of
           TwoPlayers {}   -> pure ("two", "third")
           ThreePlayers {} -> pure ("three", "fourth")
           FourPlayers {}  -> pure ("four", "fifth")
@@ -315,7 +306,7 @@ sendGatheringPlayers playersSoFar =
       let
         text =
           "The first " <> count <> " players are " <>
-          prettyList (map showPlayer (toList players)) <> ".\n" <>
+          prettyList (map showPlayer (toList (configurationPlayers config))) <> ".\n" <>
           "Is there a " <> nextOrdinal <> " player?"
       sendMsg (textMsgWithKeyboard text anotherPlayerKeyboard)
   where
@@ -339,7 +330,7 @@ teamEmoji dir =
     Southeast -> "\9899"   -- :medium_black_circle: for black
     Southwest -> "\128310" -- :large_orange_diamond: for orange
 
-doAIMove :: Match size -> HalmaState size -> BotM ()
+doAIMove :: Match -> HalmaState -> BotM ()
 doAIMove match game = do
   let
     tc = hsTurnCounter game
@@ -371,7 +362,7 @@ doAIMove match game = do
       modify $ \botState ->
         botState { bsMatchState = MatchRunning match' }
 
-sendGameState :: Match size -> HalmaState size -> BotM ()
+sendGameState :: Match -> HalmaState -> BotM ()
 sendGameState match game = do
   sendCurrentBoard game
   let

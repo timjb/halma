@@ -41,7 +41,7 @@ data TargetModifier
 showTargetModifier :: TargetModifier -> T.Text
 showTargetModifier (TargetModifier i) =
   case i of
-    -1 -> "l" 
+    -1 -> "l"
     0 -> "c"
     1 -> "r"
     _ | i < -1 ->
@@ -69,7 +69,7 @@ tagWithTargetModifier untagged =
     accumFun targetModifier val =
       (nextTargetModifier targetModifier, (targetModifier, val))
     firstTargetModifier = TargetModifier (- (l `div` 2))
-    nextTargetModifier (TargetModifier i) = 
+    nextTargetModifier (TargetModifier i) =
       if i == -1 && even l then
         TargetModifier 1
       else
@@ -106,16 +106,16 @@ newtype RowNumber
   { unRowNumber :: Int
   } deriving (Show, Eq, Ord)
 
-radiusInRows :: HalmaGrid size -> Int
+radiusInRows :: HalmaGrid -> Int
 radiusInRows grid =
   case grid of
     SmallGrid -> 8
     LargeGrid -> 10
 
-humanToInternalRowNumber :: HalmaGrid size -> RowNumber -> Int
+humanToInternalRowNumber :: HalmaGrid -> RowNumber -> Int
 humanToInternalRowNumber grid (RowNumber i) = i - radiusInRows grid
 
-internalToHumanRowNumber :: HalmaGrid size -> Int -> RowNumber
+internalToHumanRowNumber :: HalmaGrid -> Int -> RowNumber
 internalToHumanRowNumber grid i = RowNumber (i + radiusInRows grid)
 
 data MoveCmd
@@ -151,7 +151,7 @@ parseMoveCmd text =
 
 movesToRow
   :: RuleOptions
-  -> HalmaBoard size
+  -> HalmaBoard
   -> (Int, Int)
   -> Int
   -> [(TargetModifier, Move)]
@@ -170,7 +170,7 @@ movesToRow rules board startPos targetRow =
 
 moveToMoveCmd
   :: RuleOptions
-  -> HalmaBoard size
+  -> HalmaBoard
   -> Move
   -> Maybe MoveCmd
 moveToMoveCmd rules board move = do
@@ -189,7 +189,7 @@ moveToMoveCmd rules board move = do
       }
   where
     getRow (_x, y) = y
-  
+
 
 data CheckMoveCmdResult
   = MoveImpossible String
@@ -199,7 +199,7 @@ data CheckMoveCmdResult
 
 checkMoveCmd
   :: RuleOptions
-  -> HalmaBoard size
+  -> HalmaBoard
   -> Team
   -> MoveCmd
   -> CheckMoveCmdResult
@@ -236,7 +236,7 @@ checkMoveCmd rules board player moveCmd =
               case mMove of
                 Just move -> MoveFoundUnique move
                 Nothing -> MoveSuggestions (firstMove :| restMoves)
-                    
+
   where
     allPieces = swap <$> M.toList (toMap board)
     pieceToMove =
@@ -245,4 +245,3 @@ checkMoveCmd rules board player moveCmd =
         , pieceNumber = movePieceNumber moveCmd
         }
     targetRow = humanToInternalRowNumber (getGrid board) (moveTargetRow moveCmd)
-    
