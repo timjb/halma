@@ -37,11 +37,11 @@ testDistancesFromCenter = do
   [1,6,12,18,24,24,18,12,6,0,0,0] @=?* actual SmallGrid
   [1,6,12,18,24,30,30,24,18,12,6,0,0,0] @=?* actual LargeGrid
   where
-    distCenter :: HalmaGrid s -> (Int, Int) -> Int
+    distCenter :: HalmaGrid -> (Int, Int) -> Int
     distCenter hg = distance hg (0, 0)
-    fieldsAtDistance :: HalmaGrid s -> Int -> [(Int, Int)]
+    fieldsAtDistance :: HalmaGrid -> Int -> [(Int, Int)]
     fieldsAtDistance hg d = filter ((== d) . distCenter hg) (indices hg)
-    actual :: HalmaGrid s -> [Int]
+    actual :: HalmaGrid -> [Int]
     actual hg = map (length . fieldsAtDistance hg) [0,1..]
 
 testBoundaryLength :: Assertion
@@ -62,8 +62,8 @@ assertOneOf :: (Eq a, Show a) => a -> [a] -> Assertion
 assertOneOf actual validResults = assertBool msg (actual `elem` validResults)
   where msg = "Expected '" ++ show actual ++ "' to be one of '" ++ show validResults ++ "'"
 
-numbersCorrect :: HalmaGrid size -> [Maybe Piece] -> Bool
-numbersCorrect halmaGrid = go 15 15 (numberOfFields halmaGrid - 2*15)
+numbersCorrect :: HalmaGrid -> [Maybe Piece] -> Bool
+numbersCorrect grid = go 15 15 (numberOfFields grid - 2*15)
   where
     go :: Int -> Int -> Int -> [Maybe Piece] -> Bool
     go 0 0 0 [] = True
@@ -88,12 +88,12 @@ arbitraryPerm xs =
   fmap (map fst . sortBy (compare `on` snd) . zip xs)
        (vectorOf (length xs) arbitrary :: Gen [Double])
 
-genBoard :: HalmaGrid size -> Gen (HalmaBoard size)
-genBoard halmaGrid = do
-  pieces <- arbitraryPerm (indices halmaGrid)
+genBoard :: HalmaGrid -> Gen HalmaBoard
+genBoard grid = do
+  pieces <- arbitraryPerm (indices grid)
   let (northTeam, restPieces) = splitAt 15 pieces
       southTeam = take 15 restPieces
-  return $ fromJust $ fromMap halmaGrid $ M.fromList $
+  return $ fromJust $ fromMap grid $ M.fromList $
     mkPieces North northTeam ++
     mkPieces South southTeam
   where
@@ -101,19 +101,21 @@ genBoard halmaGrid = do
       let mkPiece pos ix = (pos, Piece { pieceNumber = ix, pieceTeam = team})
       in zipWith mkPiece positions [1..15]
 
-instance Arbitrary (HalmaBoard 'S) where
-  arbitrary = genBoard SmallGrid
+instance Arbitrary HalmaGrid where
+  arbitrary = elements [SmallGrid, LargeGrid]
 
-instance Arbitrary (HalmaBoard 'L) where
-  arbitrary = genBoard LargeGrid
+instance Arbitrary HalmaBoard where
+  arbitrary = do
+    grid <- arbitrary
+    genBoard grid
 
-genHalmaGridPos :: HalmaGrid size -> Gen (Int, Int)
-genHalmaGridPos halmaGrid = elements (indices halmaGrid)
+genHalmaGridPos :: HalmaGrid -> Gen (Int, Int)
+genHalmaGridPos grid = elements (indices grid)
 
-prop_fromMap :: HalmaBoard size -> Bool
+prop_fromMap :: HalmaBoard -> Bool
 prop_fromMap halmaBoard = fromMap (getGrid halmaBoard) (toMap halmaBoard) == Just halmaBoard
 
-prop_moveNumbersInvariant :: HalmaBoard size -> Gen Bool
+prop_moveNumbersInvariant :: HalmaBoard -> Gen Bool
 prop_moveNumbersInvariant board = do
   let grid = getGrid board
   startPos <- genHalmaGridPos grid
@@ -139,8 +141,6 @@ tests =
   , testCase "testBoundaryLength" testBoundaryLength
   , testCase "testDirectionTo" testDirectionTo
   , testCase "testInitialBoard" testInitialBoard
-  , testProperty "prop_fromMap(S)" (prop_fromMap :: HalmaBoard 'S -> Bool)
-  , testProperty "prop_fromMap(L)" (prop_fromMap :: HalmaBoard 'L -> Bool)
-  , testProperty "prop_moveNumbersInvariant(S)" (prop_moveNumbersInvariant :: HalmaBoard 'S -> Gen Bool)
-  , testProperty "prop_moveNumbersInvariant(L)" (prop_moveNumbersInvariant :: HalmaBoard 'L -> Gen Bool)
+  , testProperty "prop_fromMap" prop_fromMap
+  , testProperty "prop_moveNumbersInvariant" prop_moveNumbersInvariant
   ]
