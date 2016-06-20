@@ -19,6 +19,9 @@ module Game.Halma.TelegramBot.Types
   , MatchState (..)
   , ChatId
   , PlayersSoFar (..)
+  , HalmaChat (..)
+  , initialHalmaChat
+  , BotConfig (..)
   , BotState (..)
   , initialBotState
   ) where
@@ -31,7 +34,9 @@ import Game.TurnCounter
 
 import Data.Aeson ((.=), (.:))
 import Data.Monoid ((<>))
+import Network.HTTP.Client (Manager)
 import qualified Data.Aeson as A
+import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
@@ -260,23 +265,38 @@ data MatchState
 
 deriving instance Show MatchState
 
-type ChatId = T.Text
+type ChatId = Int
+
+data HalmaChat
+  = HalmaChat
+  { hcId :: ChatId
+  , hcLocale :: HalmaLocale
+  , hcMatchState :: MatchState
+  } deriving (Show)
+
+initialHalmaChat :: ChatId -> HalmaChat
+initialHalmaChat chatId =
+  HalmaChat
+    { hcId = chatId
+    , hcLocale = deHalmaLocale
+    , hcMatchState = NoMatch
+    }
+
+data BotConfig
+  = BotConfig
+  { bcToken :: TG.Token
+  , bcManager :: Manager
+  }
 
 data BotState
   = BotState
-  { bsLocale :: HalmaLocale
-  , bsChatId :: ChatId
-  , bsNextId :: Int
-  , bsToken :: TG.Token
-  , bsMatchState :: MatchState
+  { bsNextId :: Int
+  , bsChats :: M.Map ChatId HalmaChat
   } deriving (Show)
 
-initialBotState :: T.Text -> TG.Token -> BotState
-initialBotState chatId token =
+initialBotState :: BotState
+initialBotState =
   BotState
-    { bsLocale = deHalmaLocale
-    , bsChatId = chatId
-    , bsToken = token
-    , bsNextId = 0
-    , bsMatchState = NoMatch
+    { bsNextId = 0
+    , bsChats = M.empty
     }

@@ -2,8 +2,11 @@
 {-# LANGUAGE LambdaCase #-}
 
 module Game.Halma.TelegramBot.BotM
-  ( BotM
-  , evalBotM
+  ( GeneralBotM
+  , GlobalBotM
+  , BotM
+  , evalGlobalBotM
+  , stateZoom
   , runReq
   , Msg
   , textMsg
@@ -20,41 +23,47 @@ import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class (MonadReader (..))
 import Control.Monad.State.Class (MonadState, gets)
-import Control.Monad.Trans.Reader (ReaderT, runReaderT)
-import Control.Monad.Trans.State (StateT, evalStateT)
-import Network.HTTP.Client (Manager, newManager)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Control.Monad.Trans.Reader (ReaderT(..))
+import Control.Monad.Trans.State (StateT(..), evalStateT)
+import Network.HTTP.Client (Manager)
 import Servant.Common.Req (ServantError)
 import System.IO (hPrint, stderr)
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
-newtype BotM a
-  = BotM
-  { unBotM :: ReaderT Manager (StateT BotState IO) a
+newtype GeneralBotM s a
+  = GeneralBotM
+  { unGeneralBotM :: ReaderT BotConfig (StateT s IO) a
   } deriving
     ( Functor, Applicative, Monad
     , MonadIO, MonadThrow, MonadCatch, MonadMask
-    , MonadState BotState, MonadReader Manager
+    , MonadState s, MonadReader BotConfig
     )
 
-evalBotM :: BotM a -> BotState -> IO a
-evalBotM action initialState = do
-  manager <- newManager tlsManagerSettings
-  evalStateT (runReaderT (unBotM action) manager) initialState
+type GlobalBotM = GeneralBotM BotState
+type BotM = GeneralBotM HalmaChat
 
-runReq :: (TG.Token -> Manager -> IO a) -> BotM a
+evalGlobalBotM :: GlobalBotM a -> BotConfig -> IO a
+evalGlobalBotM action cfg =
+  evalStateT (runReaderT (unGeneralBotM action) cfg) initialBotState
+
+stateZoom :: t -> GeneralBotM t a -> GeneralBotM s (a, t)
+stateZoom initial action = do
+  GeneralBotM $
+    ReaderT $ \cfg ->
+      liftIO $ runStateT (runReaderT (unGeneralBotM action) cfg) initial
+
+runReq :: (TG.Token -> Manager -> IO a) -> GeneralBotM s a
 runReq reqAction = do
-  manager <- ask
-  token <- gets bsToken
-  liftIO (reqAction token manager)
+  cfg <- ask
+  liftIO $ reqAction (bcToken cfg) (bcManager cfg)
 
 type Msg = ChatId -> TG.SendMessageRequest
 
 textMsg :: T.Text -> Msg
 textMsg text chatId =
   TG.SendMessageRequest
-    { TG.message_chat_id = chatId
+    { TG.message_chat_id = T.pack (show chatId)
     , TG.message_text = text
     , TG.message_parse_mode = Just TG.Markdown
     , TG.message_disable_web_page_preview = Just True
@@ -65,11 +74,11 @@ textMsg text chatId =
 
 sendMsg :: Msg -> BotM ()
 sendMsg createMsg = do
-  chatId <- gets bsChatId
+  chatId <- gets hcId
   logErrors $ runReq $ \token -> TG.sendMessage token (createMsg chatId)
 
 translate :: (HalmaLocale -> a) -> BotM a
-translate getTranslation = gets (getTranslation . bsLocale)
+translate getTranslation = gets (getTranslation . hcLocale)
 
 printError :: (MonadIO m, Show a) => a -> m ()
 printError val = liftIO (hPrint stderr val)

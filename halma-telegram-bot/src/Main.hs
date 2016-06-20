@@ -18,6 +18,7 @@ import Game.TurnCounter
 import qualified Game.Halma.AI.Ignorant as IgnorantAI
 import qualified Game.Halma.AI.Competitive as CompetitiveAI
 
+import Control.Concurrent (threadDelay)
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (catMaybes)
@@ -25,6 +26,8 @@ import Data.Monoid ((<>))
 import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.State.Class (MonadState (..), gets, modify)
+import Network.HTTP.Client (newManager)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Servant.Common.Req (ServantError)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
@@ -35,11 +38,20 @@ import qualified Web.Telegram.API.Bot as TG
 main :: IO ()
 main =
   getArgs >>= \case
-    [tokenStr, chatId] -> do
-      let token = TG.Token (ensureIsPrefixOf "bot" (T.pack tokenStr))
-      evalBotM halmaBot (initialBotState (T.pack chatId) token)
-    _ ->
-      hPutStrLn stderr "Usage: ./halma-bot telegram-token chat-id"
+    "--help":_ -> usage
+    "-h":_ -> usage
+    [tokenStr] -> do
+      manager <- newManager tlsManagerSettings
+      let
+        cfg =  
+          BotConfig
+            { bcToken = TG.Token (ensureIsPrefixOf "bot" (T.pack tokenStr))
+            , bcManager = manager
+            }
+      evalGlobalBotM halmaBot cfg
+    _ -> usage
+  where
+    usage = hPutStrLn stderr "Usage: ./halma-bot telegram-token"
 
 ensureIsPrefixOf :: T.Text -> T.Text -> T.Text
 ensureIsPrefixOf prefix str =
@@ -64,10 +76,10 @@ mkKeyboard buttonLabels =
 
 textMsgWithKeyboard :: T.Text -> TG.ReplyKeyboard -> Msg
 textMsgWithKeyboard text keyboard chatId =
-  (TG.sendMessageRequest chatId text)
+  (TG.sendMessageRequest (T.pack (show chatId)) text)
   { TG.message_reply_markup = Just keyboard }
 
-getUpdates :: BotM (Either ServantError [TG.Update])
+getUpdates :: GlobalBotM (Either ServantError [TG.Update])
 getUpdates = do
   nid <- gets bsNextId
   let
@@ -83,13 +95,22 @@ getUpdates = do
         modify (\s -> s { bsNextId = nid' })
       return (Right updates)
 
+getUpdatesRetry :: GlobalBotM [TG.Update]
+getUpdatesRetry =
+  getUpdates >>= \case
+    Left err -> do
+      printError err
+      liftIO $ threadDelay 1000000 -- wait one second
+      getUpdatesRetry
+    Right updates -> pure updates
+
 sendCurrentBoard :: HalmaState -> BotM ()
 sendCurrentBoard halmaState =
   withRenderedBoardInPngFile halmaState mempty $ \path -> do
-    chatId <- gets bsChatId
+    chatId <- gets hcId
     let
       fileUpload = TG.localFileUpload path
-      photoReq = TG.uploadPhotoRequest chatId fileUpload
+      photoReq = TG.uploadPhotoRequest (T.pack (show chatId)) fileUpload
     logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
@@ -100,8 +121,8 @@ handleCommand cmdCall =
       pure Nothing
     CmdCall { cmdCallName = "start" } ->
       pure $ Just $ do
-        modify $ \botState ->
-          botState { bsMatchState = NoMatch }
+        modify $ \chat ->
+          chat { hcMatchState = NoMatch }
         sendI18nMsg hlWelcomeMsg
     CmdCall { cmdCallName = "setlang", cmdCallArgs = Nothing } -> do
       sendMsg $ textMsg $
@@ -111,19 +132,19 @@ handleCommand cmdCall =
       case parseLocaleId arg of
         Just localeId ->
           pure $ Just $
-            modify $ \botState -> botState { bsLocale = localeById localeId }
+            modify $ \chat -> chat { hcLocale = localeById localeId }
         Nothing -> do
           sendMsg $ textMsg $
             "Could not parse language. Must be one of the following strings: " <>
             T.intercalate ", " (map showLocaleId allLocaleIds)
           pure Nothing
     CmdCall { cmdCallName = "newmatch" } ->
-      pure $ Just $ modify $ \botState ->
-        botState { bsMatchState = GatheringPlayers NoPlayers }
+      pure $ Just $ modify $ \chat ->
+        chat { hcMatchState = GatheringPlayers NoPlayers }
     CmdCall { cmdCallName = "newround" } ->
       pure $ Just $ sendMsg $ textMsg "todo: newround"
     CmdCall { cmdCallName = "undo" } -> do
-      matchState <- gets bsMatchState
+      matchState <- gets hcMatchState
       case matchState of
         MatchRunning match@Match{ matchCurrentGame = Just game } ->
           case undoLastMove game of
@@ -132,8 +153,8 @@ handleCommand cmdCall =
                 match' = match { matchCurrentGame = Just game' }
               in
                 pure $ Just $
-                  modify $ \botState ->
-                    botState { bsMatchState = MatchRunning match' }
+                  modify $ \chat ->
+                    chat { hcMatchState = MatchRunning match' }
             Nothing -> do
               sendMsg $ textMsg "can't undo!"
               pure Nothing
@@ -165,11 +186,11 @@ sendMoveSuggestions sender msg game suggestions = do
     boardLabels =
       M.fromList $ map suggestionToLabel $ toList suggestions
   withRenderedBoardInPngFile game boardLabels $ \path -> do
-    chatId <- gets bsChatId
+    chatId <- gets hcId
     let
       fileUpload = TG.localFileUpload path
       photoReq =
-        (TG.uploadPhotoRequest chatId fileUpload)
+        (TG.uploadPhotoRequest (T.pack (show chatId)) fileUpload)
           { TG.photo_caption = Just text
           , TG.photo_reply_to_message_id = Just (TG.message_id msg)
           , TG.photo_reply_markup = Just keyboard
@@ -218,15 +239,15 @@ handleMoveCmd match game moveCmd fullMsg = do
               let
                 match' = match { matchCurrentGame = Just game' }
               pure $ Just $
-                modify $ \botState ->
-                  botState { bsMatchState = MatchRunning match' }
+                modify $ \chat ->
+                  chat { hcMatchState = MatchRunning match' }
 
 handleTextMsg
   :: T.Text
   -> TG.Message
   -> BotM (Maybe (BotM ()))
 handleTextMsg text fullMsg = do
-  matchState <- gets bsMatchState
+  matchState <- gets hcMatchState
   case (matchState, text) of
     (_, parseCmdCall -> Just cmdCall) ->
       handleCommand cmdCall
@@ -256,12 +277,12 @@ handleTextMsg text fullMsg = do
               Nothing -> fail "could not create configuration with two players and small grid!"
           EnoughPlayers config ->
             pure $ EnoughPlayers (addPlayerToConfig new config)
-      botState <- get
+      chat <- get
       case playersSoFar' of
         EnoughPlayers config@(configurationPlayers -> SixPlayers{}) ->
-          put $ botState { bsMatchState = MatchRunning (newMatch config) }
+          put $ chat { hcMatchState = MatchRunning (newMatch config) }
         _ ->
-          put $ botState { bsMatchState = GatheringPlayers playersSoFar' }
+          put $ chat { hcMatchState = GatheringPlayers playersSoFar' }
     addAIPlayer :: PlayersSoFar Player -> BotM ()
     addAIPlayer = addPlayer AIPlayer
     addTelegramPlayer :: PlayersSoFar Player -> BotM ()
@@ -272,8 +293,8 @@ handleTextMsg text fullMsg = do
         Just user ->
           addPlayer (TelegramPlayer user) players
     startMatch players =
-      modify $ \botState ->
-        botState { bsMatchState = MatchRunning (newMatch players) }
+      modify $ \chat ->
+        chat { hcMatchState = MatchRunning (newMatch players) }
 
 sendI18nMsg :: (HalmaLocale -> T.Text) -> BotM ()
 sendI18nMsg getText = do
@@ -359,8 +380,8 @@ doAIMove match game = do
             "The AI " <> teamEmoji (partyHomeCorner currParty) <>
             " makes the following move: " <> showMoveCmd moveCmd
         Nothing -> pure ()
-      modify $ \botState ->
-        botState { bsMatchState = MatchRunning match' }
+      modify $ \chat ->
+        chat { hcMatchState = MatchRunning match' }
 
 sendGameState :: Match -> HalmaState -> BotM ()
 sendGameState match game = do
@@ -378,7 +399,7 @@ sendGameState match game = do
 
 sendMatchState :: BotM ()
 sendMatchState = do
-  matchState <- gets bsMatchState
+  matchState <- gets hcMatchState
   case matchState of
     NoMatch ->
       sendMsg $ textMsg
@@ -392,32 +413,54 @@ sendMatchState = do
             "Start a new round with /newround"
         Just game -> sendGameState match game
 
-halmaBot :: BotM ()
-halmaBot = do
-  sendI18nMsg hlWelcomeMsg
-  mainLoop
+loadHalmaChat :: ChatId -> GlobalBotM HalmaChat
+loadHalmaChat chatId = do
+  chats <- gets bsChats
+  case M.lookup chatId chats of
+    Nothing -> pure (initialHalmaChat chatId)
+    Just chat -> pure chat
+
+saveHalmaChat :: HalmaChat -> GlobalBotM ()
+saveHalmaChat chat = 
+  modify $ \botState ->
+    let
+      chats = bsChats botState
+      chats' = M.insert (hcId chat) chat chats
+    in
+      botState { bsChats = chats' }
+
+withHalmaChat
+  :: ChatId
+  -> BotM a
+  -> GlobalBotM a
+withHalmaChat chatId action = do
+  chat <- loadHalmaChat chatId
+  (res, chat') <- stateZoom chat action
+  saveHalmaChat chat'
+  return res
+
+handleUpdate
+  :: TG.Update
+  -> GlobalBotM ()
+handleUpdate update = do
+  liftIO $ print update
+  case update of
+    TG.Update { TG.message = Just msg } -> handleMsg msg
+    _ -> return ()
   where
-    mainLoop :: BotM ()
-    mainLoop = do
-      sendMatchState
-      getUpdatesLoop
-      mainLoop
-    getUpdatesLoop =
-      getUpdates >>= \case
-        Left err -> do { printError err; getUpdatesLoop }
-        Right updates -> do
-          actions <- catMaybes <$> mapM handleUpdate updates
-          if null actions then
-            getUpdatesLoop
-          else do
-            sequence_ actions
-            mainLoop
-    handleUpdate update = do
-      liftIO $ print update
-      case update of
-        TG.Update { TG.message = Just msg } -> handleMsg msg
-        _ -> pure Nothing
     handleMsg msg =
       case msg of
-        TG.Message { TG.text = Just txt } -> handleTextMsg txt msg
-        _ -> pure Nothing
+        TG.Message { TG.text = Just txt, TG.chat = tgChat } ->
+          withHalmaChat (TG.chat_id tgChat) $ do
+            handleTextMsg txt msg >>= \case
+              Nothing -> return ()
+              Just action -> do
+                action
+                sendMatchState
+        _ -> return ()
+
+halmaBot :: GlobalBotM ()
+halmaBot = do
+  updates <- getUpdatesRetry
+  mapM_ handleUpdate updates
+  halmaBot
