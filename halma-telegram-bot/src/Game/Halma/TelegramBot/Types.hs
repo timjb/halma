@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Game.Halma.TelegramBot.Types
@@ -33,11 +34,13 @@ import Game.Halma.TelegramBot.I18n
 import Game.TurnCounter
 
 import Data.Aeson ((.=), (.:))
+import Control.Applicative ((<|>))
 import Data.Monoid ((<>))
 import Network.HTTP.Client (Manager)
 import qualified Data.Aeson as A
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import qualified Web.Telegram.API.Bot as TG
 
 -- TODO: remove this orphan instance
@@ -255,36 +258,101 @@ data PlayersSoFar a
   = NoPlayers
   | OnePlayer a
   | EnoughPlayers (Configuration a)
+  deriving (Show)
 
-deriving instance Show a => Show (PlayersSoFar a)
+instance A.ToJSON a => A.ToJSON (PlayersSoFar a) where
+  toJSON =
+    \case
+      NoPlayers -> A.Array mempty
+      OnePlayer p -> A.toJSON [p]
+      EnoughPlayers config -> A.toJSON config
+
+instance A.FromJSON a => A.FromJSON (PlayersSoFar a) where
+  parseJSON val =
+    parseEnoughPlayers val <|> parseTooFewPlayers val
+    where
+      parseEnoughPlayers v =
+        EnoughPlayers <$> A.parseJSON v
+      parseTooFewPlayers =
+        A.withArray "PlayersSoFar" $ \v ->
+          case V.length v of
+            0 -> pure NoPlayers
+            1 -> OnePlayer <$> A.parseJSON (V.head v)
+            _ -> fail "expected an array of length 1 or 2"
 
 data MatchState
   = NoMatch
   | GatheringPlayers (PlayersSoFar Player)
   | MatchRunning Match
+  deriving (Show)
 
-deriving instance Show MatchState
+instance A.ToJSON MatchState where
+  toJSON =
+    \case
+      NoMatch ->
+        A.object [ "state" .= ("no_match" :: T.Text) ]
+      GatheringPlayers playersSoFar ->
+        A.object
+          [ "state" .= ("gathering_players" :: T.Text)
+          , "players_so_far" .= playersSoFar
+          ]
+      MatchRunning match ->
+        A.object
+          [ "state" .= ("match_running" :: T.Text)
+          , "match" .= match
+          ]
+
+instance A.FromJSON MatchState where
+  parseJSON =
+    A.withObject "MatchState" $ \o -> do
+      state <- o .: "state"
+      case state :: T.Text of
+        "no_match" ->
+          pure NoMatch
+        "gathering_players" ->
+          GatheringPlayers <$> (o .: "players_so_far")
+        "match_running" ->
+          MatchRunning <$> (o .: "match")
+        _other ->
+          fail $ "unexpected state: " ++ T.unpack state
 
 type ChatId = Int
 
 data HalmaChat
   = HalmaChat
   { hcId :: ChatId
-  , hcLocale :: HalmaLocale
+  , hcLocale :: LocaleId
   , hcMatchState :: MatchState
   } deriving (Show)
+
+instance A.ToJSON HalmaChat where
+  toJSON HalmaChat{..} =
+    A.object
+    [ "id" .= hcId
+    , "locale" .= hcLocale
+    , "match_state" .= hcMatchState
+    ]
+
+instance A.FromJSON HalmaChat where
+  parseJSON =
+    A.withObject "HalmaChat" $ \o -> do
+      hcId <- o .: "id"
+      hcLocale <- o .: "locale"
+      hcMatchState <- o .: "match_state"
+      pure HalmaChat{..}
 
 initialHalmaChat :: ChatId -> HalmaChat
 initialHalmaChat chatId =
   HalmaChat
     { hcId = chatId
-    , hcLocale = deHalmaLocale
+    , hcLocale = En
     , hcMatchState = NoMatch
     }
 
 data BotConfig
   = BotConfig
   { bcToken :: TG.Token
+  , bcOutputDirectory :: Maybe FilePath
   , bcManager :: Manager
   }
 

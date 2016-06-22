@@ -78,7 +78,7 @@ sendMsg createMsg = do
   logErrors $ runReq $ \token -> TG.sendMessage token (createMsg chatId)
 
 translate :: (HalmaLocale -> a) -> BotM a
-translate getTranslation = gets (getTranslation . hcLocale)
+translate getTranslation = gets (getTranslation . localeById . hcLocale)
 
 printError :: (MonadIO m, Show a) => a -> m ()
 printError val = liftIO (hPrint stderr val)

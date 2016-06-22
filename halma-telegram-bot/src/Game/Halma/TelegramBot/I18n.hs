@@ -12,6 +12,7 @@ module Game.Halma.TelegramBot.I18n
   ) where
 
 import Data.Monoid ((<>))
+import qualified Data.Aeson as A
 import qualified Data.Text as T
 
 data HalmaLocale
@@ -71,6 +72,16 @@ data LocaleId
   = En
   | De
   deriving (Show, Eq)
+
+instance A.ToJSON LocaleId where
+  toJSON = A.String . showLocaleId
+
+instance A.FromJSON LocaleId where
+  parseJSON =
+    A.withText "LocaleId" $ \t ->
+      case parseLocaleId t of
+        Nothing -> fail "unrecognized locale id"
+        Just localeId -> pure localeId
 
 allLocaleIds :: [LocaleId]
 allLocaleIds = [En, De]

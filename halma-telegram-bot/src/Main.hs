@@ -10,6 +10,7 @@ import Game.Halma.Board
 import Game.Halma.Configuration
 import Game.Halma.TelegramBot.BotM
 import Game.Halma.TelegramBot.Cmd
+import Game.Halma.TelegramBot.CmdLineOptions
 import Game.Halma.TelegramBot.DrawBoard
 import Game.Halma.TelegramBot.I18n
 import Game.Halma.TelegramBot.Move
@@ -25,37 +26,36 @@ import Data.Maybe (catMaybes)
 import Data.Monoid ((<>))
 import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Reader.Class (ask)
 import Control.Monad.State.Class (MonadState (..), gets, modify)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Servant.Common.Req (ServantError)
+import System.Directory (doesFileExist)
 import System.Environment (getArgs)
+import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Encode.Pretty as A
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Options.Applicative as OA
 import qualified Web.Telegram.API.Bot as TG
 
 main :: IO ()
-main =
-  getArgs >>= \case
-    "--help":_ -> usage
-    "-h":_ -> usage
-    [tokenStr] -> do
-      manager <- newManager tlsManagerSettings
-      let
-        cfg =  
-          BotConfig
-            { bcToken = TG.Token (ensureIsPrefixOf "bot" (T.pack tokenStr))
-            , bcManager = manager
-            }
-      evalGlobalBotM halmaBot cfg
-    _ -> usage
-  where
-    usage = hPutStrLn stderr "Usage: ./halma-bot telegram-token"
-
-ensureIsPrefixOf :: T.Text -> T.Text -> T.Text
-ensureIsPrefixOf prefix str =
-  if prefix `T.isPrefixOf` str then str else prefix <> str
+main = do
+  opts <- OA.execParser optionsParserInfo
+  manager <- newManager tlsManagerSettings
+  let
+    cfg =  
+      BotConfig
+        { bcToken = boToken opts
+        , bcOutputDirectory = boOutputDirectory opts
+        , bcManager = manager
+        }
+  print opts
+  evalGlobalBotM halmaBot cfg
 
 mkButton :: T.Text -> TG.KeyboardButton
 mkButton text =
@@ -132,7 +132,7 @@ handleCommand cmdCall =
       case parseLocaleId arg of
         Just localeId ->
           pure $ Just $
-            modify $ \chat -> chat { hcLocale = localeById localeId }
+            modify $ \chat -> chat { hcLocale = localeId }
         Nothing -> do
           sendMsg $ textMsg $
             "Could not parse language. Must be one of the following strings: " <>
@@ -415,19 +415,42 @@ sendMatchState = do
 
 loadHalmaChat :: ChatId -> GlobalBotM HalmaChat
 loadHalmaChat chatId = do
-  chats <- gets bsChats
-  case M.lookup chatId chats of
-    Nothing -> pure (initialHalmaChat chatId)
+  botState <- get
+  cfg <- ask
+  case M.lookup chatId (bsChats botState) of
     Just chat -> pure chat
+    Nothing -> do
+      case bcOutputDirectory cfg of
+        Nothing -> pure dflt
+        Just outDir -> do
+          let filePath = outDir </> (show chatId ++ ".json")
+          fileExists <- liftIO $ doesFileExist filePath
+          if not fileExists then
+            pure dflt
+          else do
+            jsonLBS <- liftIO $ LBS.readFile filePath
+            case A.eitherDecode jsonLBS of
+              Left err ->
+                fail $ "decoding " ++ filePath ++ " failed: " ++ err
+              Right chat ->
+                pure chat
+  where
+    dflt = initialHalmaChat chatId
 
 saveHalmaChat :: HalmaChat -> GlobalBotM ()
-saveHalmaChat chat = 
+saveHalmaChat chat = do
   modify $ \botState ->
     let
       chats = bsChats botState
       chats' = M.insert (hcId chat) chat chats
     in
       botState { bsChats = chats' }
+  cfg <- ask
+  case bcOutputDirectory cfg of
+    Nothing -> pure ()
+    Just outDir -> do
+      let filePath = outDir </> (show (hcId chat) ++ ".json")
+      liftIO $ LBS.writeFile filePath (A.encodePretty chat)
 
 withHalmaChat
   :: ChatId

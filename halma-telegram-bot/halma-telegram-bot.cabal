@@ -24,6 +24,7 @@ Executable halma-telegram-bot
   other-modules:
     Game.Halma.TelegramBot.BotM
     Game.Halma.TelegramBot.Cmd
+    Game.Halma.TelegramBot.CmdLineOptions
     Game.Halma.TelegramBot.DrawBoard
     Game.Halma.TelegramBot.I18n
     Game.Halma.TelegramBot.Move
@@ -47,4 +48,9 @@ Executable halma-telegram-bot
     directory,
     semigroups,
     containers,
-    aeson
+    aeson,
+    aeson-pretty,
+    optparse-applicative,
+    filepath,
+    bytestring,
+    vector
