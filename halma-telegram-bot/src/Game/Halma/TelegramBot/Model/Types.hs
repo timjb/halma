@@ -6,36 +6,30 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module Game.Halma.TelegramBot.Types
+module Game.Halma.TelegramBot.Model.Types
   ( Player (..)
-  , showUser
-  , showPlayer
+  , PartyResult (..)
+  , ExtendedPartyResult (..)
   , GameResult (..)
   , HalmaState (..)
-  , doMove
-  , undoLastMove
   , Party (..)
   , Match (..)
-  , newMatch
   , MatchState (..)
   , ChatId
   , PlayersSoFar (..)
+  , LocaleId (..)
   , HalmaChat (..)
-  , initialHalmaChat
   , BotConfig (..)
   , BotState (..)
-  , initialBotState
   ) where
 
 import Game.Halma.Board
 import Game.Halma.Configuration
 import Game.Halma.Rules
-import Game.Halma.TelegramBot.I18n
 import Game.TurnCounter
 
 import Data.Aeson ((.=), (.:))
 import Control.Applicative ((<|>))
-import Data.Monoid ((<>))
 import Network.HTTP.Client (Manager)
 import qualified Data.Aeson as A
 import qualified Data.Map as M
@@ -61,43 +55,38 @@ instance A.FromJSON Player where
     A.String "AIPlayer" -> pure AIPlayer
     other -> TelegramPlayer <$> A.parseJSON other
 
-showUser :: TG.User -> T.Text
-showUser user =
-  case TG.user_username user of
-    Just username -> "@" <> username
-    Nothing ->
-      TG.user_first_name user <>
-      maybe "" (" " <>) (TG.user_last_name user)
+data PartyResult
+  = PartyResult
+  { prParty :: Party
+  , prNumberOfTurns :: Int
+  } deriving (Eq, Show)
 
-showPlayer :: Player -> T.Text
-showPlayer player =
-  case player of
-    AIPlayer -> "AI"
-    TelegramPlayer user -> showUser user
-
-data PlayerResult
-  = PlayerResult
-  { prPlayer :: Player -- ^ the player
-  , prCount :: Int -- ^ number of moves
-  } deriving (Show, Eq)
-
-instance A.ToJSON PlayerResult where
-  toJSON playerResult =
+instance A.ToJSON PartyResult where
+  toJSON pr =
     A.object
-      [ "player" .= prPlayer playerResult
-      , "count" .= prCount playerResult
+      [ "party" .= prParty pr
+      , "number_of_turns" .= prNumberOfTurns pr
       ]
 
-instance A.FromJSON PlayerResult where
+instance A.FromJSON PartyResult where
   parseJSON =
-    A.withObject "PlayerResult" $ \o -> do
-      player <- o .: "player"
-      count <- o .: "count"
-      pure PlayerResult { prPlayer = player, prCount = count }
+    A.withObject "PartyResult" $ \o -> do
+      prParty <- o .: "party"
+      prNumberOfTurns <- o .: "number_of_turns"
+      pure PartyResult {..}
+
+data ExtendedPartyResult
+  = ExtendedPartyResult
+  { eprPartyResult :: PartyResult
+  , eprPlace :: Int -- ^ zero-based position
+  , eprPlaceShared :: Bool -- ^ has another player finished in the same round?
+  , eprLag :: Int -- ^ number of moves after winner
+  , eprNumberOfPlayers :: Int
+  } deriving (Eq, Show)
 
 newtype GameResult
   = GameResult
-  { grNumberOfMoves :: [PlayerResult]
+  { grNumberOfMoves :: [PartyResult]
   } deriving (Show)
 
 instance A.ToJSON GameResult where
@@ -136,6 +125,7 @@ data HalmaState
   { hsBoard :: HalmaBoard
   , hsTurnCounter :: TurnCounter Party
   , hsLastMove :: Maybe Move
+  , hsFinished :: [PartyResult]
   } deriving (Eq, Show)
 
 instance A.ToJSON HalmaState where
@@ -145,67 +135,19 @@ instance A.ToJSON HalmaState where
       , "parties" .= tcPlayers (hsTurnCounter game)
       , "total_moves" .= tcCounter (hsTurnCounter game)
       , "last_move" .= hsLastMove game
+      , "finished" .= hsFinished game
       ]
 
 instance A.FromJSON HalmaState where
   parseJSON =
     A.withObject "HalmaState" $ \o -> do
-      board <- o .: "board"
-      parties <- o .: "parties"
-      totalMoves <- o .: "total_moves"
-      mLastMove <- o .: "last_move"
-      let
-        turnCounter =
-          TurnCounter
-            { tcPlayers = parties
-            , tcCounter = totalMoves
-            }
-      pure
-        HalmaState
-          { hsBoard = board
-          , hsTurnCounter = turnCounter
-          , hsLastMove = mLastMove
-          }
-
-initialHalmaState :: Configuration Player -> HalmaState
-initialHalmaState config =
-  let
-    (board, turnCounter) = newGame config
-  in
-    HalmaState
-      { hsBoard = board
-      , hsTurnCounter = toParty <$> turnCounter
-      , hsLastMove = Nothing
-      }
-  where
-    toParty (dir, player) = Party { partyPlayer = player, partyHomeCorner = dir }
-
-doMove :: Move -> HalmaState -> Either String HalmaState
-doMove move state =
-  case movePiece move (hsBoard state) of
-    Left err -> Left err
-    Right board' ->
-      Right
-        HalmaState
-          { hsBoard = board'
-          , hsTurnCounter = nextTurn (hsTurnCounter state)
-          , hsLastMove = Just move
-          }
-
-undoLastMove :: HalmaState -> Maybe HalmaState
-undoLastMove state = do
-  move <- hsLastMove state
-  board' <- eitherToMaybe $ movePiece (invertMove move) (hsBoard state)
-  Just
-    HalmaState
-      { hsBoard = board'
-      , hsTurnCounter = previousTurn (hsTurnCounter state)
-      , hsLastMove = Nothing
-      }
-  where
-    eitherToMaybe = either (const Nothing) Just
-    invertMove Move { moveFrom = from, moveTo = to } =
-      Move { moveFrom = to, moveTo = from }
+      hsBoard <- o .: "board"
+      tcPlayers <- o .: "parties"
+      tcCounter <- o .: "total_moves"
+      hsLastMove <- o .: "last_move"
+      hsFinished <- o .: "finished"
+      let hsTurnCounter = TurnCounter {..}
+      pure HalmaState {..}
 
 data Match
   = Match
@@ -238,21 +180,6 @@ instance A.FromJSON Match where
           , matchHistory = history
           , matchCurrentGame = currentGame
           }
-
-newMatch :: Configuration Player -> Match
-newMatch config =
-  Match
-    { matchConfig = config
-    , matchRules = rules
-    , matchHistory = []
-    , matchCurrentGame = Just (initialHalmaState config)
-    }
-  where
-    rules =
-      RuleOptions
-        { movingBackwards = Temporarily
-        , invading = Allowed
-        }
 
 data PlayersSoFar a
   = NoPlayers
@@ -316,6 +243,34 @@ instance A.FromJSON MatchState where
         _other ->
           fail $ "unexpected state: " ++ T.unpack state
 
+data LocaleId
+  = En
+  | De
+  deriving (Show, Eq, Bounded, Enum)
+
+showLocaleId :: LocaleId -> T.Text
+showLocaleId localeId =
+  case localeId of
+    En -> "en"
+    De -> "de"
+
+parseLocaleId :: T.Text -> Maybe LocaleId
+parseLocaleId text =
+  case T.toLower text of
+    "de" -> Just De
+    "en" -> Just En
+    _ -> Nothing
+
+instance A.ToJSON LocaleId where
+  toJSON = A.String . showLocaleId
+
+instance A.FromJSON LocaleId where
+  parseJSON =
+    A.withText "LocaleId" $ \t ->
+      case parseLocaleId t of
+        Nothing -> fail "unrecognized locale id"
+        Just localeId -> pure localeId
+
 type ChatId = Int
 
 data HalmaChat
@@ -326,7 +281,7 @@ data HalmaChat
   } deriving (Show)
 
 instance A.ToJSON HalmaChat where
-  toJSON HalmaChat{..} =
+  toJSON HalmaChat {..} =
     A.object
     [ "id" .= hcId
     , "locale" .= hcLocale
@@ -339,15 +294,7 @@ instance A.FromJSON HalmaChat where
       hcId <- o .: "id"
       hcLocale <- o .: "locale"
       hcMatchState <- o .: "match_state"
-      pure HalmaChat{..}
-
-initialHalmaChat :: ChatId -> HalmaChat
-initialHalmaChat chatId =
-  HalmaChat
-    { hcId = chatId
-    , hcLocale = En
-    , hcMatchState = NoMatch
-    }
+      pure HalmaChat {..}
 
 data BotConfig
   = BotConfig
@@ -361,10 +308,3 @@ data BotState
   { bsNextId :: Int
   , bsChats :: M.Map ChatId HalmaChat
   } deriving (Show)
-
-initialBotState :: BotState
-initialBotState =
-  BotState
-    { bsNextId = 0
-    , bsChats = M.empty
-    }

@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Game.Halma.TelegramBot.DrawBoard
+module Game.Halma.TelegramBot.View.DrawBoard
   ( BoardLabels
   , withRenderedBoardInPngFile
   ) where
@@ -8,7 +8,7 @@ module Game.Halma.TelegramBot.DrawBoard
 import Game.Halma.Board
 import Game.Halma.Board.Draw
 import Game.Halma.TelegramBot.Move
-import Game.Halma.TelegramBot.Types
+import Game.Halma.TelegramBot.Model.Types
 
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))

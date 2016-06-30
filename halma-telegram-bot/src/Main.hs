@@ -11,10 +11,9 @@ import Game.Halma.Configuration
 import Game.Halma.TelegramBot.BotM
 import Game.Halma.TelegramBot.Cmd
 import Game.Halma.TelegramBot.CmdLineOptions
-import Game.Halma.TelegramBot.DrawBoard
-import Game.Halma.TelegramBot.I18n
+import Game.Halma.TelegramBot.Model
 import Game.Halma.TelegramBot.Move
-import Game.Halma.TelegramBot.Types
+import Game.Halma.TelegramBot.View
 import Game.TurnCounter
 import qualified Game.Halma.AI.Ignorant as IgnorantAI
 import qualified Game.Halma.AI.Competitive as CompetitiveAI
@@ -129,14 +128,14 @@ handleCommand cmdCall =
         "/setlang expects an argument!"
       pure Nothing
     CmdCall { cmdCallName = "setlang", cmdCallArgs = Just arg } ->
-      case parseLocaleId arg of
+      case parsePrettyLocaleId arg of
         Just localeId ->
           pure $ Just $
             modify $ \chat -> chat { hcLocale = localeId }
         Nothing -> do
           sendMsg $ textMsg $
             "Could not parse language. Must be one of the following strings: " <>
-            T.intercalate ", " (map showLocaleId allLocaleIds)
+            T.intercalate ", " (map prettyLocaleId allLocaleIds)
           pure Nothing
     CmdCall { cmdCallName = "newmatch" } ->
       pure $ Just $ modify $ \chat ->
@@ -173,7 +172,7 @@ sendMoveSuggestions
 sendMoveSuggestions sender msg game suggestions = do
   let
     text =
-      showUser sender <> ", the move command you sent is ambiguous. " <>
+      prettyUser sender <> ", the move command you sent is ambiguous. " <>
       "Please send another move command or choose one in the " <>
       "following list."
     suggestionToButton (moveCmd, _move) =
@@ -196,6 +195,12 @@ sendMoveSuggestions sender msg game suggestions = do
           , TG.photo_reply_markup = Just keyboard
           }
     logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
+
+announceResult
+  :: ExtendedPartyResult
+  -> BotM ()
+announceResult extendedResult =
+  sendI18nMsg $ \locale -> hlCongratulation locale extendedResult
 
 handleMoveCmd
   :: Match
@@ -220,8 +225,8 @@ handleMoveCmd match game moveCmd fullMsg = do
       case checkResult of
         _ | player /= TelegramPlayer sender -> do
           sendMsg $ textMsg $
-            "Hey " <> showUser sender <> ", it's not your turn, it's " <>
-            showPlayer player <> "'s!"
+            "Hey " <> prettyUser sender <> ", it's not your turn, it's " <>
+            prettyPlayer player <> "'s!"
           pure Nothing
         MoveImpossible reason -> do
           sendMsg $ textMsg $
@@ -235,12 +240,39 @@ handleMoveCmd match game moveCmd fullMsg = do
             Left err -> do
               printError err
               pure Nothing
-            Right game' -> do
-              let
-                match' = match { matchCurrentGame = Just game' }
-              pure $ Just $
-                modify $ \chat ->
-                  chat { hcMatchState = MatchRunning match' }
+            Right afterMove -> do
+              handleAfterMove match game afterMove
+
+handleAfterMove
+  :: Match
+  -> HalmaState
+  -> AfterMove
+  -> BotM (Maybe (BotM ()))
+handleAfterMove match game afterMove =
+  case afterMove of
+    GameEnded lastResult -> do
+      announceResult lastResult
+      let
+        gameResult =
+          GameResult
+            { grNumberOfMoves = hsFinished game ++ [eprPartyResult lastResult]
+            }
+        match' =
+          match
+            { matchCurrentGame = Nothing
+            , matchHistory = matchHistory match ++ [gameResult]
+            }
+      pure $ Just $
+        modify $ \chat ->
+          chat { hcMatchState = MatchRunning match' }
+      -- TODO: offer to start new game
+    GameContinues mPartyResult game' -> do
+      mapM_ announceResult mPartyResult
+      let
+        match' = match { matchCurrentGame = Just game' }
+      pure $ Just $
+        modify $ \chat ->
+          chat { hcMatchState = MatchRunning match' }
 
 handleTextMsg
   :: T.Text
@@ -311,7 +343,7 @@ sendGatheringPlayers playersSoFar =
     OnePlayer firstPlayer ->
       let
         text =
-          "The first player is " <> showPlayer firstPlayer <> ".\n" <>
+          "The first player is " <> prettyPlayer firstPlayer <> ".\n" <>
           "Who is the second player?"
       in
         sendMsg (textMsgWithKeyboard text meKeyboard)
@@ -327,7 +359,7 @@ sendGatheringPlayers playersSoFar =
       let
         text =
           "The first " <> count <> " players are " <>
-          prettyList (map showPlayer (toList (configurationPlayers config))) <> ".\n" <>
+          prettyList (map prettyPlayer (toList (configurationPlayers config))) <> ".\n" <>
           "Is there a " <> nextOrdinal <> " player?"
       sendMsg (textMsgWithKeyboard text anotherPlayerKeyboard)
   where
@@ -340,16 +372,6 @@ sendGatheringPlayers playersSoFar =
     meKeyboard = mkKeyboard [["me"], ["an AI"]]
     anotherPlayerKeyboard =
       mkKeyboard [["yes, me"], ["yes, an AI"], ["no"]]
-
-teamEmoji :: Team -> T.Text
-teamEmoji dir =
-  case dir of
-    North     -> "\128309" -- :large_blue_circle: for blue
-    Northeast -> "\128154" -- :green_heart: for green
-    Northwest -> "\128156" -- :purple_heart: for purple
-    South     -> "\128308" -- :red_circle: for red
-    Southeast -> "\9899"   -- :medium_black_circle: for black
-    Southwest -> "\128310" -- :large_orange_diamond: for orange
 
 doAIMove :: Match -> HalmaState -> BotM ()
 doAIMove match game = do
@@ -372,16 +394,14 @@ doAIMove match game = do
   case doMove aiMove game of
     Left err ->
       fail $ "doing an AI move failed unexpectedly: " ++ err
-    Right game' -> do
-      let match' = match { matchCurrentGame = Just game' }
+    Right afterMove -> do
       case mAIMoveCmd of
         Just moveCmd ->
           sendMsg $ textMsg $
             "The AI " <> teamEmoji (partyHomeCorner currParty) <>
             " makes the following move: " <> showMoveCmd moveCmd
         Nothing -> pure ()
-      modify $ \chat ->
-        chat { hcMatchState = MatchRunning match' }
+      handleAfterMove match game afterMove >>= sequence_
 
 sendGameState :: Match -> HalmaState -> BotM ()
 sendGameState match game = do
@@ -395,7 +415,7 @@ sendGameState match game = do
       sendMatchState
     TelegramPlayer user ->
       sendMsg $ textMsg $
-        showUser user <> " " <> unicodeSymbol <> " it's your turn!"
+        prettyUser user <> " " <> unicodeSymbol <> " it's your turn!"
 
 sendMatchState :: BotM ()
 sendMatchState = do

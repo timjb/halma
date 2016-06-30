@@ -25,10 +25,13 @@ Executable halma-telegram-bot
     Game.Halma.TelegramBot.BotM
     Game.Halma.TelegramBot.Cmd
     Game.Halma.TelegramBot.CmdLineOptions
-    Game.Halma.TelegramBot.DrawBoard
-    Game.Halma.TelegramBot.I18n
+    Game.Halma.TelegramBot.Model
+    Game.Halma.TelegramBot.Model.Types
     Game.Halma.TelegramBot.Move
-    Game.Halma.TelegramBot.Types
+    Game.Halma.TelegramBot.View
+    Game.Halma.TelegramBot.View.DrawBoard
+    Game.Halma.TelegramBot.View.I18n
+    Game.Halma.TelegramBot.View.Pretty
   build-depends:
     halma,
     base >= 4.6 && < 5,

@@ -134,7 +134,8 @@ button
   => String
   -> ButtonState a
   -> QDiagram b V2 Double (Option (Last a))
-button txt buttonState = (label <> background) # value val' # padX 1.05 # padY 1.2
+button txt buttonState =
+  (label <> background) # value val' # padX 1.05 # padY 1.2
   where
     (label, background) = case buttonState of
       ButtonActive _ ->
@@ -149,7 +150,6 @@ button txt buttonState = (label <> background) # value val' # padX 1.05 # padY 1
         ( text txt # fontSizeO 13
         , roundedRect 110 26 6 # fc yellow # lc black # lw thick
         )
-
     val' =
       case buttonState of
         ButtonActive val -> Option (Just (Last val))
@@ -157,8 +157,10 @@ button txt buttonState = (label <> background) # value val' # padX 1.05 # padY 1
 
 playerFinishedSign
   :: (Renderable (Path V2 Double) b, Renderable (Text Double) b)
-  => Colour Double -> QDiagram b V2 Double (Option (Last a))
-playerFinishedSign color = (label <> background) # value (Option Nothing) # padX 1.05 # padY 1.5
+  => Colour Double
+  -> QDiagram b V2 Double (Option (Last a))
+playerFinishedSign color =
+  (label <> background) # value (Option Nothing) # padX 1.05 # padY 1.5
   where
     label = text "finished" # fontSizeO 13
     background = roundedRect 110 26 6 # fc color # lw none
@@ -248,8 +250,10 @@ renderViewState teamColors (w,h) (HalmaView halmaViewState) =
         ButtonInactive
       else
         ButtonActive $ AIMove aiMoveType
-    finishedSigns = foldl (===) mempty $
-      map (playerFinishedSign . teamColors) $ hvsFinishedPlayers halmaViewState
+    finishedSigns =
+      foldl (===) mempty $
+      map (playerFinishedSign . teamColors) $
+      hvsFinishedPlayers halmaViewState
     field = resize (fmap (fmap FieldClick) <$> renderHalmaViewState teamColors halmaViewState)
   in toGtkCoords (buttons === finishedSigns) `atop` field
 

@@ -16,8 +16,8 @@ module Game.Halma.TelegramBot.BotM
   , logErrors
   ) where
 
-import Game.Halma.TelegramBot.Types
-import Game.Halma.TelegramBot.I18n
+import Game.Halma.TelegramBot.Model
+import Game.Halma.TelegramBot.View.I18n
 
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))

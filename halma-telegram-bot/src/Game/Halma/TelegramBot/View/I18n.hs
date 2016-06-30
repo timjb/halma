@@ -1,16 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Game.Halma.TelegramBot.I18n
+module Game.Halma.TelegramBot.View.I18n
   ( HalmaLocale (..)
   , enHalmaLocale
   , deHalmaLocale
   , LocaleId (..)
   , allLocaleIds
-  , showLocaleId
-  , parseLocaleId
   , localeById
   ) where
+    
+import Game.Halma.TelegramBot.Model.Types
+import Game.Halma.TelegramBot.View.Pretty
 
+import Data.Char (toUpper)
 import Data.Monoid ((<>))
 import qualified Data.Aeson as A
 import qualified Data.Text as T
@@ -19,7 +21,8 @@ data HalmaLocale
   = HalmaLocale
   { hlWelcomeMsg :: T.Text
   , hlHelpMsg :: T.Text
-  } deriving (Show)
+  , hlCongratulation :: ExtendedPartyResult -> T.Text
+  }
 
 -- | English
 enHalmaLocale :: HalmaLocale
@@ -42,7 +45,37 @@ enHalmaLocale =
         "ask you which one you mean.\n" <>
         "For example: the command 'a11' makes me move your piece labeled 'a' " <>
         "to row number 11."
+    , hlCongratulation = congrat
     }
+  where
+    nominal i =
+      case i of
+        1 -> "first"
+        2 -> "second"
+        3 -> "third"
+        4 -> "fourth"
+        5 -> "fifth"
+        6 -> "sixth"
+    deficitMsg result =
+      "with a deficit of " <> T.pack (show (eprLag result)) <> " moves"
+    congrat result =
+      let
+        party = prParty $ eprPartyResult result
+      in
+      case (partyPlayer party, eprPlace result) of
+        (AIPlayer, i) ->
+          "The AI " <> teamEmoji (partyHomeCorner party) <> " finishes " <>
+          nominal (i+1) <>
+          (if i == 0 then "" else " " <> deficitMsg result)
+        (TelegramPlayer user, 0) ->
+          prettyUser user <> ", " <>
+          "congratulations on your " <>
+          (if eprPlaceShared result then "shared " else "") <>
+          "first place \127941" -- unicode symbol: sports medal
+        (TelegramPlayer user, i) ->
+          prettyUser user <> ", " <>
+          "you are " <> nominal (i+1) <>
+          " " <> deficitMsg result
 
 -- | German (deutsch)
 deHalmaLocale :: HalmaLocale
@@ -66,41 +99,55 @@ deHalmaLocale =
         "dann frage ich dich, welche du genau meinst.\n" <>
         "Zum Beispiel: Das Kommando 'a11' bewegt deinen Stein mit der " <>
         "Aufschrift 'a' in die Zeile Nummer 11."
+    , hlCongratulation = congrat
     }
+  where
+    nominal i =
+      case i of
+        1 -> "erster"
+        2 -> "zweiter"
+        3 -> "dritter"
+        4 -> "vierter"
+        5 -> "fünfter"
+        6 -> "sechster"
+    deficitMsg result =
+      "mit einem Rückstand von " <>
+      T.pack (show (eprLag result)) <>
+      " Zügen"
+    congrat result =
+      let
+        party = prParty $ eprPartyResult result
+      in
+      case (partyPlayer party, eprPlace result) of
+        (AIPlayer, i) ->
+          "Die KI " <> teamEmoji (partyHomeCorner party) <> " wird " <>
+          (if eprPlaceShared result then "ebenfalls " else "") <>
+          capitalize (nominal (i+1)) <>
+          (if i == 0 then "" else " " <> deficitMsg result)
+        (TelegramPlayer user, 0) ->
+          prettyUser user <> ", " <>
+          "Glückwunsch zum " <>
+          (if eprPlaceShared result then "geteilten " else "") <>
+          "ersten Platz \127941" -- unicode symbol: sports medal
+        (TelegramPlayer user, i) ->
+          prettyUser user <> ", " <>
+          "du bist " <>
+          (if eprPlaceShared result then "auch " else "") <>
+          capitalize (nominal (i+1)) <>
+          " " <> deficitMsg result
 
-data LocaleId
-  = En
-  | De
-  deriving (Show, Eq)
-
-instance A.ToJSON LocaleId where
-  toJSON = A.String . showLocaleId
-
-instance A.FromJSON LocaleId where
-  parseJSON =
-    A.withText "LocaleId" $ \t ->
-      case parseLocaleId t of
-        Nothing -> fail "unrecognized locale id"
-        Just localeId -> pure localeId
+capitalize :: T.Text -> T.Text
+capitalize t =
+  if T.null t then
+    t
+  else
+    toUpper (T.head t) `T.cons` T.tail t
 
 allLocaleIds :: [LocaleId]
 allLocaleIds = [En, De]
 
-showLocaleId :: LocaleId -> T.Text
-showLocaleId localeId =
-  case localeId of
-    En -> "en"
-    De -> "de"
-
 localesText :: T.Text
-localesText = T.intercalate "/" (map showLocaleId allLocaleIds)
-
-parseLocaleId :: T.Text -> Maybe LocaleId
-parseLocaleId text =
-  case T.toLower text of
-    "de" -> Just De
-    "en" -> Just En
-    _ -> Nothing
+localesText = T.intercalate " / " (map prettyLocaleId allLocaleIds)
 
 localeById :: LocaleId -> HalmaLocale
 localeById localeId =
