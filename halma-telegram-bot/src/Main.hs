@@ -30,10 +30,11 @@ import Control.Monad.State.Class (MonadState (..), gets, modify)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Servant.Common.Req (ServantError)
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, getTemporaryDirectory, renameFile)
 import System.Environment (getArgs)
 import System.FilePath ((</>))
-import System.IO (hPutStrLn, stderr)
+import System.IO (hClose, hPutStrLn, stderr)
+import System.IO.Temp (openTempFile)
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Encode.Pretty as A
 import qualified Data.ByteString.Lazy as LBS
@@ -468,9 +469,15 @@ saveHalmaChat chat = do
   cfg <- ask
   case bcOutputDirectory cfg of
     Nothing -> pure ()
-    Just outDir -> do
-      let filePath = outDir </> (show (hcId chat) ++ ".json")
-      liftIO $ LBS.writeFile filePath (A.encodePretty chat)
+    Just outDir ->
+      liftIO $ do
+        let fileName = show (hcId chat) ++ ".json"
+            fullFilePath = outDir </> fileName
+        systemTempDir <- getTemporaryDirectory
+        (tmpFilePath, tmpFileHandle) <- openTempFile systemTempDir fileName
+        LBS.hPut tmpFileHandle (A.encodePretty chat)
+        hClose tmpFileHandle
+        renameFile tmpFilePath fullFilePath
 
 withHalmaChat
   :: ChatId
