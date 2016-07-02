@@ -63,7 +63,7 @@ doMove move state =
     Left err -> Left err
     Right board' ->
       let
-        wasLastMove = hasFinished (hsBoard state) (partyHomeCorner party)
+        wasLastMove = hasFinished board' (partyHomeCorner party)
         mExtendedPartyResult =
           if wasLastMove then
             Just $ getExtendedPartyResult (hsTurnCounter state) (hsFinished state)
