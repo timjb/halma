@@ -15,7 +15,6 @@ import Game.Halma.TelegramBot.Model.Types
 import Game.TurnCounter
 
 import Data.Foldable (toList)
-import Data.List (find)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 
@@ -76,9 +75,8 @@ doMove move state =
         isGameEnd = length finished' == numberOfPlayers
         turnCounter' =
           fromMaybe (hsTurnCounter state) $
-          find (\tc -> currentPlayer tc `notElem` map prParty finished') $
-          take numberOfPlayers $
-          iterate nextTurn (nextTurn (hsTurnCounter state))
+          nextTurnWith (`notElem` map prParty finished') $
+          hsTurnCounter state
         state' =
           HalmaState
             { hsBoard = board'
@@ -120,14 +118,19 @@ undoLastMove :: HalmaState -> Maybe HalmaState
 undoLastMove state = do
   move <- hsLastMove state
   board' <- eitherToMaybe $ movePiece (invertMove move) (hsBoard state)
+  let
+    finished' = 
+      filter (hasFinished board' . partyHomeCorner . prParty) $
+      hsFinished state
   Just
     HalmaState
       { hsBoard = board'
-      , hsTurnCounter = previousTurn (hsTurnCounter state)
+      , hsTurnCounter =
+          fromMaybe (hsTurnCounter state) $
+          nextTurnWith (`notElem` map prParty finished') $
+          hsTurnCounter state
       , hsLastMove = Nothing
-      , hsFinished =
-          filter (hasFinished board' . partyHomeCorner . prParty) $
-          hsFinished state
+      , hsFinished = finished'
       }
   where
     eitherToMaybe = either (const Nothing) Just

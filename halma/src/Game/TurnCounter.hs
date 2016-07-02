@@ -3,13 +3,15 @@
 module Game.TurnCounter
   ( TurnCounter (..)
   , newTurnCounter
-  , nextTurn
-  , previousTurn
+  , nextTurn, nextTurnWith
+  , previousTurn, previousTurnWith
   , currentPlayer
   , nextPlayer
   , previousPlayer
   , currentRound
   ) where
+
+import Data.List (find)
 
 data TurnCounter p
   = TurnCounter
@@ -27,8 +29,20 @@ newTurnCounter players =
 nextTurn :: TurnCounter p -> TurnCounter p
 nextTurn (TurnCounter ps c) = TurnCounter ps (c+1)
 
+nextTurnWith :: (p -> Bool) -> TurnCounter p -> Maybe (TurnCounter p)
+nextTurnWith predicate tc =
+  find (predicate . currentPlayer) $
+  take (length (tcPlayers tc)) $
+  iterate nextTurn (nextTurn tc)
+
 previousTurn :: TurnCounter p -> TurnCounter p
 previousTurn (TurnCounter ps c) = TurnCounter ps (c-1)
+
+previousTurnWith :: (p -> Bool) -> TurnCounter p -> Maybe (TurnCounter p)
+previousTurnWith predicate tc =
+  find (predicate . currentPlayer) $
+  take (length (tcPlayers tc)) $
+  iterate previousTurn (previousTurn tc)
 
 currentPlayer :: TurnCounter p -> p
 currentPlayer (TurnCounter ps c) = ps !! (c `mod` length ps)
