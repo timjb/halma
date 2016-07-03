@@ -141,8 +141,19 @@ handleCommand cmdCall =
     CmdCall { cmdCallName = "newmatch" } ->
       pure $ Just $ modify $ \chat ->
         chat { hcMatchState = GatheringPlayers NoPlayers }
-    CmdCall { cmdCallName = "newround" } ->
-      pure $ Just $ sendMsg $ textMsg "todo: newround"
+    CmdCall { cmdCallName = "newround" } -> do
+      matchState <- gets hcMatchState
+      case matchState of
+        MatchRunning match ->
+          pure $ Just $ do
+            sendMsg $ textMsg
+              "starting a new round!"
+            modify $ \chat ->
+              chat { hcMatchState = MatchRunning (newRound match) }
+        _ -> do
+          sendMsg $ textMsg
+            "Can't start a new round, because there is no match running. You have to start a /newmatch first."
+          pure Nothing
     CmdCall { cmdCallName = "undo" } -> do
       matchState <- gets hcMatchState
       case matchState of

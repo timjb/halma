@@ -4,8 +4,10 @@ module Game.Halma.TelegramBot.Model
   , doMove
   , undoLastMove
   , newMatch
+  , newRound
   , initialHalmaChat
   , initialBotState
+  , newRound
   ) where
 
 import Game.Halma.Board
@@ -151,3 +153,14 @@ newMatch config =
         { movingBackwards = Temporarily
         , invading = Allowed
         }
+
+newRound :: Match -> Match
+newRound match = 
+  match
+    { matchHistory = matchHistory match ++ toList mGameResult
+    , matchCurrentGame = Just game'
+    }
+  where
+    game' = initialHalmaState (matchConfig match)
+    mGameResult = GameResult . hsFinished <$> matchCurrentGame match
+    
