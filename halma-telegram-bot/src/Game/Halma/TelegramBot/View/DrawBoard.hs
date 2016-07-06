@@ -7,7 +7,7 @@ module Game.Halma.TelegramBot.View.DrawBoard
 
 import Game.Halma.Board
 import Game.Halma.Board.Draw
-import Game.Halma.TelegramBot.Move
+import Game.Halma.TelegramBot.Model.MoveCmd
 import Game.Halma.TelegramBot.Model.Types
 
 import Control.Monad.Catch (MonadMask)

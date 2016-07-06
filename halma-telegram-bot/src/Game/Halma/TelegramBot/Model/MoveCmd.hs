@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Game.Halma.TelegramBot.Move
+module Game.Halma.TelegramBot.Model.MoveCmd
   ( TargetModifier
   , showTargetModifier
   , PieceNumber

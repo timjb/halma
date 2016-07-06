@@ -22,12 +22,15 @@ Executable halma-telegram-bot
   Hs-source-dirs: src
   main-is: Main.hs
   other-modules:
-    Game.Halma.TelegramBot.BotM
-    Game.Halma.TelegramBot.Cmd
     Game.Halma.TelegramBot.CmdLineOptions
+    Game.Halma.TelegramBot.Controller
+    Game.Halma.TelegramBot.Controller.BotM
+    Game.Halma.TelegramBot.Controller.Helpers
+    Game.Halma.TelegramBot.Controller.SlashCmd
+    Game.Halma.TelegramBot.Controller.Types
     Game.Halma.TelegramBot.Model
+    Game.Halma.TelegramBot.Model.MoveCmd
     Game.Halma.TelegramBot.Model.Types
-    Game.Halma.TelegramBot.Move
     Game.Halma.TelegramBot.View
     Game.Halma.TelegramBot.View.DrawBoard
     Game.Halma.TelegramBot.View.I18n

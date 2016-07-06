@@ -1,21 +1,18 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Game.Halma.TelegramBot.BotM
+module Game.Halma.TelegramBot.Controller.BotM
   ( GeneralBotM
   , GlobalBotM
   , BotM
   , evalGlobalBotM
   , stateZoom
   , runReq
-  , Msg
-  , textMsg
-  , sendMsg
-  , translate
   , printError
   , logErrors
   ) where
 
+import Game.Halma.TelegramBot.Controller.Types
 import Game.Halma.TelegramBot.Model
 import Game.Halma.TelegramBot.View.I18n
 
@@ -43,6 +40,13 @@ newtype GeneralBotM s a
 type GlobalBotM = GeneralBotM BotState
 type BotM = GeneralBotM HalmaChat
 
+initialBotState :: BotState
+initialBotState =
+  BotState
+    { bsNextId = 0
+    , bsChats = mempty
+    }
+
 evalGlobalBotM :: GlobalBotM a -> BotConfig -> IO a
 evalGlobalBotM action cfg =
   evalStateT (runReaderT (unGeneralBotM action) cfg) initialBotState
@@ -57,28 +61,6 @@ runReq :: (TG.Token -> Manager -> IO a) -> GeneralBotM s a
 runReq reqAction = do
   cfg <- ask
   liftIO $ reqAction (bcToken cfg) (bcManager cfg)
-
-type Msg = ChatId -> TG.SendMessageRequest
-
-textMsg :: T.Text -> Msg
-textMsg text chatId =
-  TG.SendMessageRequest
-    { TG.message_chat_id = T.pack (show chatId)
-    , TG.message_text = text
-    , TG.message_parse_mode = Just TG.Markdown
-    , TG.message_disable_web_page_preview = Just True
-    , TG.message_disable_notification = Nothing
-    , TG.message_reply_to_message_id = Nothing
-    , TG.message_reply_markup = Nothing
-    }
-
-sendMsg :: Msg -> BotM ()
-sendMsg createMsg = do
-  chatId <- gets hcId
-  logErrors $ runReq $ \token -> TG.sendMessage token (createMsg chatId)
-
-translate :: (HalmaLocale -> a) -> BotM a
-translate getTranslation = gets (getTranslation . localeById . hcLocale)
 
 printError :: (MonadIO m, Show a) => a -> m ()
 printError val = liftIO (hPrint stderr val)

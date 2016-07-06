@@ -1,4 +1,4 @@
-module Game.Halma.TelegramBot.Cmd
+module Game.Halma.TelegramBot.Controller.SlashCmd
   ( CmdCall (..)
   , parseCmdCall
   ) where

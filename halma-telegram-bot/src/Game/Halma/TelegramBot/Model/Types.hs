@@ -19,8 +19,6 @@ module Game.Halma.TelegramBot.Model.Types
   , PlayersSoFar (..)
   , LocaleId (..)
   , HalmaChat (..)
-  , BotConfig (..)
-  , BotState (..)
   ) where
 
 import Game.Halma.Board
@@ -30,9 +28,7 @@ import Game.TurnCounter
 
 import Data.Aeson ((.=), (.:))
 import Control.Applicative ((<|>))
-import Network.HTTP.Client (Manager)
 import qualified Data.Aeson as A
-import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Web.Telegram.API.Bot as TG
@@ -295,16 +291,3 @@ instance A.FromJSON HalmaChat where
       hcLocale <- o .: "locale"
       hcMatchState <- o .: "match_state"
       pure HalmaChat {..}
-
-data BotConfig
-  = BotConfig
-  { bcToken :: TG.Token
-  , bcOutputDirectory :: Maybe FilePath
-  , bcManager :: Manager
-  }
-
-data BotState
-  = BotState
-  { bsNextId :: Int
-  , bsChats :: M.Map ChatId HalmaChat
-  } deriving (Show)

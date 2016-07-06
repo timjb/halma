@@ -1,12 +1,12 @@
 module Game.Halma.TelegramBot.Model
-  ( module Game.Halma.TelegramBot.Model.Types
+  ( module Game.Halma.TelegramBot.Model.MoveCmd
+  , module Game.Halma.TelegramBot.Model.Types
   , AfterMove (..)
   , doMove
   , undoLastMove
   , newMatch
   , newRound
   , initialHalmaChat
-  , initialBotState
   , newRound
   ) where
 
@@ -14,6 +14,7 @@ import Game.Halma.Board
 import Game.Halma.Configuration
 import Game.Halma.Rules
 import Game.Halma.TelegramBot.Model.Types
+import Game.Halma.TelegramBot.Model.MoveCmd
 import Game.TurnCounter
 
 import Data.Foldable (toList)
@@ -41,13 +42,6 @@ initialHalmaState config =
       }
   where
     toParty (dir, player) = Party { partyPlayer = player, partyHomeCorner = dir }
-
-initialBotState :: BotState
-initialBotState =
-  BotState
-    { bsNextId = 0
-    , bsChats = M.empty
-    }
 
 data AfterMove
   = GameContinues (Maybe ExtendedPartyResult) HalmaState -- ^ result if a player finished in the last turn
