@@ -189,7 +189,10 @@ sendMoveSuggestions sender msg game suggestions = do
       "following list."
     suggestionToButton (moveCmd, _move) =
       showMoveCmd moveCmd
-    keyboard = mkKeyboard [suggestionToButton <$> toList suggestions]
+    keyboard =
+      (mkKeyboard [suggestionToButton <$> toList suggestions])
+      { TG.reply_selective = Just True
+      }
     suggestionToLabel (moveCmd, move) =
       ( moveTo move
       , maybe "" showTargetModifier (moveTargetModifier moveCmd)
