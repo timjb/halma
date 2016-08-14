@@ -107,13 +107,11 @@ handleCommand cmdCall =
       case matchState of
         MatchRunning match ->
           pure $ Just $ do
-            sendMsg $ textMsg
-              "starting a new round!"
+            sendI18nMsg hlStartingANewRound
             modify $ \chat ->
               chat { hcMatchState = MatchRunning (newRound match) }
         _ -> do
-          sendMsg $ textMsg
-            "Can't start a new round, because there is no match running. You have to start a /newmatch first."
+          sendI18nMsg hlCantStartNewRoundBecauseNoMatch
           pure Nothing
     CmdCall { cmdCallName = "undo" } -> do
       matchState <- gets hcMatchState
@@ -128,11 +126,10 @@ handleCommand cmdCall =
                   modify $ \chat ->
                     chat { hcMatchState = MatchRunning match' }
             Nothing -> do
-              sendMsg $ textMsg "can't undo!"
+              sendI18nMsg (flip hlCantUndo Nothing)
               pure Nothing
         _ -> do
-          sendMsg $ textMsg
-            "can't undo: there's no game running!"
+          sendI18nMsg (flip hlCantUndo (Just CantUndoNoGame))
           pure Nothing
     _ -> pure Nothing
 
@@ -200,9 +197,12 @@ handleMoveCmd match game moveCmd fullMsg = do
           checkMoveCmd (matchRules match) (hsBoard game) homeCorner moveCmd
       case checkResult of
         _ | player /= TelegramPlayer sender -> do
-          sendMsg $ textMsg $
-            "Hey " <> prettyUser sender <> ", it's not your turn, it's " <>
-            prettyPlayer player <> "'s!"
+          let notYourTurnInfo =
+                NotYourTurnInfo
+                { you = sender
+                , thePlayerWhoseTurnItIs = player
+                }
+          sendI18nMsg (flip hlNotYourTurn notYourTurnInfo)
           pure Nothing
         MoveImpossible reason -> do
           sendMsg $ textMsg $
@@ -368,9 +368,12 @@ doAIMove match game = do
     Right afterMove -> do
       case mAIMoveCmd of
         Just moveCmd ->
-          sendMsg $ textMsg $
-            "The AI " <> teamEmoji (partyHomeCorner currParty) <>
-            " makes the following move: " <> showMoveCmd moveCmd
+          let aiMove =
+                AIMove
+                { aiHomeCorner = partyHomeCorner currParty
+                , aiMoveCmd = moveCmd
+                }
+          in sendI18nMsg (flip hlAIMove aiMove)
         Nothing -> pure ()
       handleAfterMove match game afterMove >>= sequence_
 
@@ -379,29 +382,25 @@ sendGameState match game = do
   sendCurrentBoard game
   let
     currParty = currentPlayer (hsTurnCounter game)
-    unicodeSymbol = teamEmoji (partyHomeCorner currParty)
   case partyPlayer currParty of
     AIPlayer -> do
       doAIMove match game
       sendMatchState
     TelegramPlayer user ->
-      sendMsg $ textMsg $
-        prettyUser user <> " " <> unicodeSymbol <> " it's your turn!"
+      sendI18nMsg (\hl -> hlYourTurn hl (partyHomeCorner currParty) user)
 
 sendMatchState :: BotM ()
 sendMatchState = do
   matchState <- gets hcMatchState
   case matchState of
     NoMatch ->
-      sendMsg $ textMsg
-        "Start a new Halma match with /newmatch"
+      sendI18nMsg hlNoMatchMsg
     GatheringPlayers players ->
       sendGatheringPlayers players
     MatchRunning match ->
       case matchCurrentGame match of
         Nothing ->
-          sendMsg $ textMsg
-            "Start a new round with /newround"
+          sendI18nMsg hlNoRoundMsg
         Just game -> sendGameState match game
 
 loadHalmaChat :: ChatId -> GlobalBotM HalmaChat

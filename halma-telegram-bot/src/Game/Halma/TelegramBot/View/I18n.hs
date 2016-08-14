@@ -1,27 +1,57 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Game.Halma.TelegramBot.View.I18n
   ( HalmaLocale (..)
+  , NotYourTurnInfo (..)
+  , CantUndoReason (..)
+  , AIMove (..)
   , enHalmaLocale
   , deHalmaLocale
   , LocaleId (..)
   , allLocaleIds
   , localeById
   ) where
-    
+
+import Game.Halma.Board (HalmaDirection)
 import Game.Halma.TelegramBot.Model.Types
 import Game.Halma.TelegramBot.View.Pretty
+import Game.Halma.TelegramBot.Model.MoveCmd
 
 import Data.Char (toUpper)
 import Data.Monoid ((<>))
 import qualified Data.Aeson as A
 import qualified Data.Text as T
+import qualified Web.Telegram.API.Bot as TG
+
+data NotYourTurnInfo
+  = NotYourTurnInfo
+  { you :: TG.User
+  , thePlayerWhoseTurnItIs :: Player
+  }
+
+data CantUndoReason
+  = CantUndoNoGame
+
+data AIMove
+  = AIMove
+  { aiHomeCorner :: HalmaDirection
+  , aiMoveCmd :: MoveCmd
+  }
 
 data HalmaLocale
   = HalmaLocale
   { hlWelcomeMsg :: T.Text
   , hlHelpMsg :: T.Text
   , hlCongratulation :: ExtendedPartyResult -> T.Text
+  , hlCantStartNewRoundBecauseNoMatch :: T.Text
+  , hlStartingANewRound :: T.Text
+  , hlYourTurn :: HalmaDirection -> TG.User -> T.Text
+  , hlNotYourTurn :: NotYourTurnInfo -> T.Text
+  , hlCantUndo :: Maybe CantUndoReason -> T.Text
+  , hlAIMove :: AIMove -> T.Text
+  , hlNoMatchMsg :: T.Text
+  , hlNoRoundMsg :: T.Text
   }
 
 -- | English
@@ -46,6 +76,25 @@ enHalmaLocale =
         "For example: the command 'a11' makes me move your piece labeled 'a' " <>
         "to row number 11."
     , hlCongratulation = congrat
+    , hlCantStartNewRoundBecauseNoMatch =
+        "Can't start a new round, because there is no match running. You have to start a /newmatch first."
+    , hlStartingANewRound =
+        "starting a new round!"
+    , hlYourTurn = \homeCorner user ->
+        prettyUser user <> " " <> teamEmoji homeCorner <> " it's your turn!"
+    , hlNotYourTurn = \notYourTurn ->
+        "Hey " <> prettyUser (you notYourTurn) <> ", it's not your turn, it's " <>
+        prettyPlayer (thePlayerWhoseTurnItIs notYourTurn) <> "'s!"
+    , hlCantUndo = \case
+        Nothing -> "can't undo!"
+        Just CantUndoNoGame -> "can't undo: no game running!"
+    , hlAIMove = \aiMove ->
+        "The AI " <> teamEmoji (aiHomeCorner aiMove) <>
+        " makes the following move: " <> showMoveCmd (aiMoveCmd aiMove)
+    , hlNoMatchMsg =
+        "Start a new Halma match with /newmatch"
+    , hlNoRoundMsg =
+        "Start a new round with /newround"
     }
   where
     nominal i =
@@ -56,6 +105,7 @@ enHalmaLocale =
         4 -> "fourth"
         5 -> "fifth"
         6 -> "sixth"
+        _ -> "(error: unexpected integer)"
     deficitMsg result =
       "with a deficit of " <> T.pack (show (eprLag result)) <> " moves"
     congrat result =
@@ -87,7 +137,7 @@ deHalmaLocale =
     , hlHelpMsg =
         "Du kannst mich durch folgende Kommandos steuern:\n" <>
         "/newmatch — startet ein neues Halma-Match\n" <>
-        "/newround — startet eine neue Spielrunde in einem Match\n" <>
+        "/newround — startet eine neue Spielrunde im aktuellen Match\n" <>
         "/undo — macht den letzten Zug rückgängig\n" <>
         "/setlang [" <> localesText <> "] — wechsle die Sprache / switch to another language\n" <>
         "/help — zeigt diese Hilfe-Nachricht an\n\n" <>
@@ -100,6 +150,25 @@ deHalmaLocale =
         "Zum Beispiel: Das Kommando 'a11' bewegt deinen Stein mit der " <>
         "Aufschrift 'a' in die Zeile Nummer 11."
     , hlCongratulation = congrat
+    , hlCantStartNewRoundBecauseNoMatch =
+        "Um eine neue Runde zu starten, muss erst ein neues Spiel mit /newmatch gestartet werden."
+    , hlStartingANewRound =
+        "Neue Runde!"
+    , hlYourTurn = \homeCorner user ->
+        prettyUser user <> " " <> teamEmoji homeCorner <> ", du bist dran!"
+    , hlNotYourTurn = \notYourTurn ->
+        "Hey " <> prettyUser (you notYourTurn) <> ", du bist nicht an der Reihe, sondern " <>
+        prettyPlayer (thePlayerWhoseTurnItIs notYourTurn) <> "!"
+    , hlCantUndo = \case
+        Nothing -> "'undo' nicht möglich!"
+        Just CantUndoNoGame -> "'undo' nicht möglich: es ist gerade kein Spiel am Laufen!"
+    , hlAIMove = \aiMove ->
+        "Die KI " <> teamEmoji (aiHomeCorner aiMove) <>
+        " macht den folgenden Zug: " <> showMoveCmd (aiMoveCmd aiMove)
+    , hlNoMatchMsg =
+        "Starte ein neues Halma-Match mit /newmatch"
+    , hlNoRoundMsg =
+        "Starte eine neue Runde mit /newround"
     }
   where
     nominal i =
@@ -110,6 +179,7 @@ deHalmaLocale =
         4 -> "vierter"
         5 -> "fünfter"
         6 -> "sechster"
+        _ -> "(Fehler: unerwartete Zahl)"
     deficitMsg result =
       "mit einem Rückstand von " <>
       T.pack (show (eprLag result)) <>
