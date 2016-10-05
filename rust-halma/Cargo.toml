@@ -1,0 +1,6 @@
+[package]
+name = "halma"
+version = "0.1.0"
+authors = ["Tim Baumann <tim@timbaumann.info>"]
+
+[dependencies]

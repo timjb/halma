@@ -5,6 +5,10 @@ dist
 cabal.config
 .stack-work
 
+# Rust
+Cargo.lock
+rust-halma/target
+
 # macOS
 .DS_Store
 
