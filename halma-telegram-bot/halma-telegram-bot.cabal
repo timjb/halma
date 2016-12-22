@@ -38,7 +38,7 @@ Executable halma-telegram-bot
   build-depends:
     halma,
     base >= 4.6 && < 5,
-    telegram-api >= 0.4.1.0 && < 0.5,
+    telegram-api >= 0.5 && < 0.6,
     text,
     transformers,
     servant-client,

@@ -50,7 +50,7 @@ getUpdates = do
       TG.getUpdates token (Just nid) (Just limit) (Just timeout)
   runReq updateReq >>= \case
     Left err -> return (Left err)
-    Right (TG.UpdatesResponse updates) -> do
+    Right (TG.Response updates) -> do
       unless (null updates) $ do
         let nid' = 1 + maximum (map TG.update_id updates)
         modify (\s -> s { bsNextId = nid' })
