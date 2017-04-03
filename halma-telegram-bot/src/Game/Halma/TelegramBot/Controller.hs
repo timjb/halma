@@ -5,7 +5,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Game.Halma.TelegramBot.Controller
-  ( halmaBot
+  ( handleUpdate
+  , halmaBot
   ) where
 
 import Game.Halma.Board

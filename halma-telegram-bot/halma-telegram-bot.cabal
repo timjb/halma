@@ -72,3 +72,24 @@ Executable halma-telegram-bot-server
     optparse-applicative,
     http-client,
     http-client-tls
+
+Executable halma-telegram-bot-serverless
+  Ghc-options: -threaded -Wall
+  default-language: Haskell2010
+  Hs-source-dirs: .
+  main-is: ServerlessMain.hs
+  build-depends:
+    base,
+    halma-telegram-bot,
+    aeson,
+    amazonka,
+    amazonka-core,
+    amazonka-s3,
+    bytestring,
+    conduit-extra,
+    http-client,
+    http-client-tls,
+    lens,
+    resourcet,
+    telegram-api,
+    text
