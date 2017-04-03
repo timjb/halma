@@ -16,12 +16,11 @@ source-repository head
   type: git
   location: https://github.com/timjb/halma.git
 
-Executable halma-telegram-bot
-  Ghc-options: -threaded -Wall
+library
+  Ghc-options: -Wall
   default-language: Haskell2010
   Hs-source-dirs: src
-  main-is: Main.hs
-  other-modules:
+  exposed-modules:
     Game.Halma.TelegramBot.CmdLineOptions
     Game.Halma.TelegramBot.Controller
     Game.Halma.TelegramBot.Controller.BotM
@@ -36,8 +35,8 @@ Executable halma-telegram-bot
     Game.Halma.TelegramBot.View.I18n
     Game.Halma.TelegramBot.View.Pretty
   build-depends:
-    halma >= 0.3.0.0 && < 0.4,
     base >= 4.6 && < 5,
+    halma >= 0.3.0.0 && < 0.4,
     telegram-api >= 0.6.1.0 && < 0.7,
     text,
     transformers,
@@ -60,3 +59,15 @@ Executable halma-telegram-bot
     filepath,
     bytestring,
     vector
+
+Executable halma-telegram-bot-server
+  Ghc-options: -threaded -Wall
+  default-language: Haskell2010
+  Hs-source-dirs: .
+  main-is: ServerMain.hs
+  build-depends:
+    base,
+    halma-telegram-bot,
+    optparse-applicative,
+    http-client,
+    http-client-tls
