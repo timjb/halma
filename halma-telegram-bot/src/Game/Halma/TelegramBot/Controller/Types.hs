@@ -1,5 +1,6 @@
 module Game.Halma.TelegramBot.Controller.Types
-  ( BotConfig (..)
+  ( BotPersistence (..)
+  , BotConfig (..)
   , BotState (..)
   ) where
 
@@ -9,10 +10,16 @@ import Network.HTTP.Client (Manager)
 import qualified Data.Map as M
 import qualified Web.Telegram.API.Bot as TG
 
+data BotPersistence
+  = BotPersistence
+  { bpSave :: HalmaChat -> IO ()
+  , bpLoad :: ChatId -> IO (Maybe HalmaChat)
+  }
+
 data BotConfig
   = BotConfig
   { bcToken :: TG.Token
-  , bcOutputDirectory :: Maybe FilePath
+  , bcPersistence :: BotPersistence
   , bcManager :: Manager
   }
 

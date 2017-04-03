@@ -23,19 +23,13 @@ import qualified Game.Halma.AI.Competitive as CompetitiveAI
 import Control.Concurrent (threadDelay)
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class (ask)
 import Control.Monad.State.Class (MonadState (..), gets, modify)
 import Servant.Common.Req (ServantError)
-import System.Directory (doesFileExist, getTemporaryDirectory, renameFile)
-import System.FilePath ((</>))
-import System.IO (hClose)
-import System.IO.Temp (openTempFile)
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Encode.Pretty as A
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
@@ -406,24 +400,11 @@ sendMatchState = do
 loadHalmaChat :: ChatId -> GlobalBotM HalmaChat
 loadHalmaChat chatId = do
   botState <- get
-  cfg <- ask
   case M.lookup chatId (bsChats botState) of
     Just chat -> pure chat
     Nothing -> do
-      case bcOutputDirectory cfg of
-        Nothing -> pure dflt
-        Just outDir -> do
-          let filePath = outDir </> (show chatId ++ ".json")
-          fileExists <- liftIO $ doesFileExist filePath
-          if not fileExists then
-            pure dflt
-          else do
-            jsonLBS <- liftIO $ LBS.readFile filePath
-            case A.eitherDecode jsonLBS of
-              Left err ->
-                fail $ "decoding " ++ filePath ++ " failed: " ++ err
-              Right chat ->
-                pure chat
+      persistence <- bcPersistence <$> ask
+      liftIO $ fromMaybe dflt <$> bpLoad persistence chatId
   where
     dflt = initialHalmaChat chatId
 
@@ -435,18 +416,8 @@ saveHalmaChat chat = do
       chats' = M.insert (hcId chat) chat chats
     in
       botState { bsChats = chats' }
-  cfg <- ask
-  case bcOutputDirectory cfg of
-    Nothing -> pure ()
-    Just outDir ->
-      liftIO $ do
-        let fileName = show (hcId chat) ++ ".json"
-            fullFilePath = outDir </> fileName
-        systemTempDir <- getTemporaryDirectory
-        (tmpFilePath, tmpFileHandle) <- openTempFile systemTempDir fileName
-        LBS.hPut tmpFileHandle (A.encodePretty chat)
-        hClose tmpFileHandle
-        renameFile tmpFilePath fullFilePath
+  persistence <- bcPersistence <$> ask
+  liftIO $ bpSave persistence chat
 
 withHalmaChat
   :: ChatId

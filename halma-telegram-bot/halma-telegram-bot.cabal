@@ -25,6 +25,7 @@ library
     Game.Halma.TelegramBot.Controller
     Game.Halma.TelegramBot.Controller.BotM
     Game.Halma.TelegramBot.Controller.Helpers
+    Game.Halma.TelegramBot.Controller.Persistence
     Game.Halma.TelegramBot.Controller.SlashCmd
     Game.Halma.TelegramBot.Controller.Types
     Game.Halma.TelegramBot.Model
