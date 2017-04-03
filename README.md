@@ -5,8 +5,11 @@
 
 ## Installation
 
+Make sure you have GTK and Cairo installed, then run
+
 ```bash
-$ cabal install halma
+$ cabal install halma-gui
+$ halma-gui
 ```
 
 If cabal fails to solve the version constraints, try using [Stackage](http://www.stackage.org/).
