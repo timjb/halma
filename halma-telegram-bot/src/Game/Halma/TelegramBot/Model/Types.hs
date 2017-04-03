@@ -267,7 +267,7 @@ instance A.FromJSON LocaleId where
         Nothing -> fail "unrecognized locale id"
         Just localeId -> pure localeId
 
-type ChatId = Int
+type ChatId = Integer
 
 data HalmaChat
   = HalmaChat

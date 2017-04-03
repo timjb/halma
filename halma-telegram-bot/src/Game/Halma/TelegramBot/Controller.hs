@@ -50,7 +50,7 @@ getUpdates = do
       TG.getUpdates token (Just nid) (Just limit) (Just timeout)
   runReq updateReq >>= \case
     Left err -> return (Left err)
-    Right (TG.Response updates) -> do
+    Right (TG.Response updates _resParams) -> do
       unless (null updates) $ do
         let nid' = 1 + maximum (map TG.update_id updates)
         modify (\s -> s { bsNextId = nid' })
@@ -71,7 +71,7 @@ sendCurrentBoard halmaState =
     chatId <- gets hcId
     let
       fileUpload = TG.localFileUpload path
-      photoReq = TG.uploadPhotoRequest (T.pack (show chatId)) fileUpload
+      photoReq = TG.uploadPhotoRequest (TG.ChatId chatId) fileUpload
     logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
@@ -162,7 +162,7 @@ sendMoveSuggestions sender msg game suggestions = do
     let
       fileUpload = TG.localFileUpload path
       photoReq =
-        (TG.uploadPhotoRequest (T.pack (show chatId)) fileUpload)
+        (TG.uploadPhotoRequest (TG.ChatId chatId) fileUpload)
           { TG.photo_caption = Just text
           , TG.photo_reply_to_message_id = Just (TG.message_id msg)
           , TG.photo_reply_markup = Just keyboard
@@ -470,7 +470,7 @@ handleUpdate update = do
     handleMsg msg =
       case msg of
         TG.Message { TG.text = Just txt, TG.chat = tgChat } ->
-          withHalmaChat (TG.chat_id tgChat) $ do
+          withHalmaChat (fromIntegral (TG.chat_id tgChat)) $ do
             handleTextMsg txt msg >>= \case
               Nothing -> return ()
               Just action -> do

@@ -51,7 +51,7 @@ sendMsg createMsg = do
 textMsg :: T.Text -> Msg
 textMsg text chatId =
   TG.SendMessageRequest
-    { TG.message_chat_id = T.pack (show chatId)
+    { TG.message_chat_id = TG.ChatId chatId
     , TG.message_text = text
     , TG.message_parse_mode = Just TG.Markdown
     , TG.message_disable_web_page_preview = Just True
@@ -62,5 +62,5 @@ textMsg text chatId =
 
 textMsgWithKeyboard :: T.Text -> TG.ReplyKeyboard -> Msg
 textMsgWithKeyboard text keyboard chatId =
-  (TG.sendMessageRequest (T.pack (show chatId)) text)
+  (TG.sendMessageRequest (TG.ChatId chatId) text)
   { TG.message_reply_markup = Just keyboard }
