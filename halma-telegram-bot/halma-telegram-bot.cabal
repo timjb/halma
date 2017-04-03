@@ -7,7 +7,7 @@ license: MIT
 license-file: LICENSE
 author: Tim Baumann
 maintainer: tim@timbaumann.info
-copyright: 2016 Tim Baumann
+copyright: 2016-2017 Tim Baumann
 category: Game
 build-type: Simple
 cabal-version: >= 1.22
@@ -36,7 +36,7 @@ Executable halma-telegram-bot
     Game.Halma.TelegramBot.View.I18n
     Game.Halma.TelegramBot.View.Pretty
   build-depends:
-    halma,
+    halma >= 0.3.0.0 && < 0.4,
     base >= 4.6 && < 5,
     telegram-api >= 0.6.1.0 && < 0.7,
     text,

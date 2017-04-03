@@ -1,5 +1,5 @@
 name:                halma
-version:             0.2.0.1
+version:             0.3.0.0
 synopsis:            Library implementing Halma rules
 description:         Rules and `diagrams`-based renderer for the board game Halma on a hexagonal grid.
 homepage:            https://github.com/timjb/halma
@@ -7,10 +7,11 @@ license:             MIT
 license-file:        LICENSE
 author:              Tim Baumann
 maintainer:          tim@timbaumann.info
-copyright:           2014-2016 Tim Baumann
+copyright:           2014-2017 Tim Baumann
 category:            Game
 build-type:          Simple
 cabal-version:       >= 1.10
+extra-source-files:  CHANGELOG.md
 
 source-repository head
   type:     git
