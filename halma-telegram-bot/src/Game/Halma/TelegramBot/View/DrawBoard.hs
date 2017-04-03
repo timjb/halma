@@ -12,7 +12,7 @@ import Game.Halma.TelegramBot.Model.Types
 
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))
-import Diagrams.Backend.Cairo (Cairo, renderCairo)
+import Diagrams.Backend.Rasterific (Rasterific, renderRasterific)
 import Diagrams.Prelude ((#), (|||), (*^), (&), (.~))
 import Diagrams.Query (resetValue)
 import Diagrams.Size (dims)
@@ -28,6 +28,8 @@ import qualified Diagrams.Prelude as D
 
 type BoardLabels = M.Map (Int, Int) T.Text
 
+type Backend = Rasterific
+
 withRenderedBoardInPngFile
   :: (MonadIO m, MonadMask m)
   => HalmaState
@@ -41,7 +43,7 @@ withRenderedBoardInPngFile game labels action =
       bounds = dims (V2 1000 1000)
     liftIO $ do
       t1 <- getCPUTime
-      renderCairo path bounds dia
+      renderRasterific path bounds dia
       t2 <- getCPUTime
       let renderTimeInSec = fromIntegral (t2-t1) * 1e-12 :: Float
       printf "[note] Rendering the board took %.2fs in CPU time\n" renderTimeInSec
@@ -53,7 +55,7 @@ withRenderedBoardInPngFile game labels action =
         liftIO (hClose fileHandle)
         handler filePath
 
-drawBoardForChat :: HalmaState -> BoardLabels -> D.Diagram Cairo
+drawBoardForChat :: HalmaState -> BoardLabels -> D.Diagram Backend
 drawBoardForChat game labels =
   let
     boardDia = resetValue (drawBoard' (getGrid board) drawField)
@@ -75,7 +77,7 @@ drawBoardForChat game labels =
             txt = show (unRowNumber humanRowNumber)
           in
             D.text txt # boardFontStyle # D.fc D.gray
-    drawField :: (Int, Int) -> D.Diagram Cairo
+    drawField :: (Int, Int) -> D.Diagram Backend
     drawField field =
       case lookupHalmaBoard field board of
         Just piece ->
@@ -87,7 +89,7 @@ drawBoardForChat game labels =
           case M.lookup field labels of
             Just label -> drawLabel label
             Nothing -> mempty
-    drawPiece :: Piece -> D.Diagram Cairo
+    drawPiece :: Piece -> D.Diagram Backend
     drawPiece piece =
       let
         c = defaultTeamColours (pieceTeam piece)
@@ -96,7 +98,7 @@ drawBoardForChat game labels =
         circle = D.circle 0.3 # D.fc c
       in
         text `D.atop` circle
-    drawLabel :: T.Text -> D.Diagram Cairo
+    drawLabel :: T.Text -> D.Diagram Backend
     drawLabel label =
       let
         text = D.text (T.unpack label) # boardFontStyle # D.fc D.gray

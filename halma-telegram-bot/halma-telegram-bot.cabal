@@ -50,7 +50,7 @@ Executable halma-telegram-bot
     exceptions,
     temporary,
     diagrams-lib,
-    diagrams-cairo,
+    diagrams-rasterific,
     directory,
     semigroups,
     containers,
