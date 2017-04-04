@@ -48,7 +48,7 @@ Now create a new Lambda function using `lambda-halma-telegram-bot.zip` and these
 * **Runtime**: Node.js 6.10
 * **Trigger**: Use API Gateway as a trigger. Choose "open" as the security setting, so that Telegram can call it.
 * **Handler**: Enter `lambda-handler.handler`
-* **Role**: The lambda function needs have permissions to call `GetObject`, `PutObject`, `ListBucket` on your newly created bucket. Additionally, as all lambda functions, it must be able to create logs.
+* **Role**: The lambda function needs to have permissions to call `GetObject`, `PutObject`, `ListBucket` on your newly created bucket. Additionally, as all lambda functions, it must be able to create logs.
   ```json
   {
     "Version": "2017-04-04",
