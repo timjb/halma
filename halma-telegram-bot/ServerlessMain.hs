@@ -70,11 +70,14 @@ s3Persistence bucket = do
           let
             req = S3.getObject bucket (objectKey chatId)
           runResourceT $ AWS.runAWST env $ do
-            res <- AWS.send req
-            json <- view S3.gorsBody res `AWS.sinkBody` sinkParser A.json'
-            case A.fromJSON json of
-              A.Error e -> fail e
-              A.Success a -> pure a
+            errOrRes <- AWS.trying S3._NoSuchKey $ AWS.send req
+            case errOrRes of
+              Left _noSuchKeyErr -> pure Nothing
+              Right res -> do
+                json <- view S3.gorsBody res `AWS.sinkBody` sinkParser A.json'
+                case A.fromJSON json of
+                  A.Error e -> fail e
+                  A.Success a -> pure a
     }
   where
     objectKey chatId = S3.ObjectKey (T.pack (show chatId) <> ".json")
