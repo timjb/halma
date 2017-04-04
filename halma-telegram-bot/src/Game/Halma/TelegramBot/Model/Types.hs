@@ -272,6 +272,7 @@ type ChatId = Integer
 data HalmaChat
   = HalmaChat
   { hcId :: ChatId
+  , hcLastUpdateId :: Int
   , hcLocale :: LocaleId
   , hcMatchState :: MatchState
   } deriving (Show)
@@ -280,6 +281,7 @@ instance A.ToJSON HalmaChat where
   toJSON HalmaChat {..} =
     A.object
     [ "id" .= hcId
+    , "last_update_id" .= hcLastUpdateId
     , "locale" .= hcLocale
     , "match_state" .= hcMatchState
     ]
@@ -288,6 +290,7 @@ instance A.FromJSON HalmaChat where
   parseJSON =
     A.withObject "HalmaChat" $ \o -> do
       hcId <- o .: "id"
+      hcLastUpdateId <- o .: "last_update_id" <|> pure 0
       hcLocale <- o .: "locale"
       hcMatchState <- o .: "match_state"
       pure HalmaChat {..}

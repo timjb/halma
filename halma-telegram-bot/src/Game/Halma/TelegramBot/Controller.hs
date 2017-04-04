@@ -22,6 +22,7 @@ import qualified Game.Halma.AI.Ignorant as IgnorantAI
 import qualified Game.Halma.AI.Competitive as CompetitiveAI
 
 import Control.Concurrent (threadDelay)
+import Control.Monad (when)
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
@@ -436,18 +437,21 @@ handleUpdate
 handleUpdate update = do
   liftIO $ print update
   case update of
-    TG.Update { TG.message = Just msg } -> handleMsg msg
+    TG.Update { TG.update_id = updateId, TG.message = Just msg } -> handleMsg updateId msg
     _ -> return ()
   where
-    handleMsg msg =
+    handleMsg updateId msg =
       case msg of
         TG.Message { TG.text = Just txt, TG.chat = tgChat } ->
           withHalmaChat (fromIntegral (TG.chat_id tgChat)) $ do
-            handleTextMsg txt msg >>= \case
-              Nothing -> return ()
-              Just action -> do
-                action
-                sendMatchState
+            lastUpdateId <- gets hcLastUpdateId
+            when (updateId > lastUpdateId) $ do
+              modify $ \chat -> chat { hcLastUpdateId = updateId }
+              handleTextMsg txt msg >>= \case
+                Nothing -> return ()
+                Just action -> do
+                  action
+                  sendMatchState
         _ -> return ()
 
 halmaBot :: GlobalBotM ()
