@@ -18,7 +18,15 @@ If cabal fails to solve the version constraints, try using [Stackage](http://www
 
 See the docs on [Hackage][hackage-url].
 
-## Deploying the Telegram bot on AWS Lambda
+<img align="right" src="https://cdn.rawgit.com/timjb/halma/master/images/telegram-chat.jpg" alt="Chatbot screenshot" />
+
+## The Telegram Chatbot
+
+There is a chatbot running on AWS Lambda: [@halma_bot](http://telegram.me/halma_bot)
+
+(Please be patient, it sometimes needs a few seconds to respond.)
+
+### Deploying the Telegram bot on AWS Lambda
 
 First, you need to build a Linux executable using Docker with Stack:
 
