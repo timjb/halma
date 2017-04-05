@@ -16,7 +16,11 @@ exports.handler = function (event, context, callback) {
         "'" + executable + "' exited with non-zero exit code. Please check stderr for details."
       ));
     } else {
-      callback(null, "success");
+      callback(null, {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "ok": true, "description": "update has been processed" })
+      });
     }
   });
 
