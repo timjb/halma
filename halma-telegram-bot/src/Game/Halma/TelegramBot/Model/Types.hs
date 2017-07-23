@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -27,6 +29,7 @@ import Game.Halma.Rules
 import Game.TurnCounter
 
 import Data.Aeson ((.=), (.:))
+import Data.Int (Int64)
 import Control.Applicative ((<|>))
 import qualified Data.Aeson as A
 import qualified Data.Text as T
@@ -267,7 +270,7 @@ instance A.FromJSON LocaleId where
         Nothing -> fail "unrecognized locale id"
         Just localeId -> pure localeId
 
-type ChatId = Integer
+type ChatId = Int64
 
 data HalmaChat
   = HalmaChat

@@ -7,7 +7,6 @@ module Game.Halma.TelegramBot.Model
   , newMatch
   , newRound
   , initialHalmaChat
-  , newRound
   ) where
 
 import Game.Halma.Board
@@ -19,7 +18,6 @@ import Game.TurnCounter
 
 import Data.Foldable (toList)
 import Data.Maybe (fromMaybe)
-import qualified Data.Map as M
 
 initialHalmaChat :: ChatId -> HalmaChat
 initialHalmaChat chatId =
@@ -116,7 +114,7 @@ undoLastMove state = do
   move <- hsLastMove state
   board' <- eitherToMaybe $ movePiece (invertMove move) (hsBoard state)
   let
-    finished' = 
+    finished' =
       filter (hasFinished board' . partyHomeCorner . prParty) $
       hsFinished state
   Just
@@ -150,7 +148,7 @@ newMatch config =
         }
 
 newRound :: Match -> Match
-newRound match = 
+newRound match =
   match
     { matchHistory = matchHistory match ++ toList mGameResult
     , matchCurrentGame = Just game'
@@ -158,4 +156,3 @@ newRound match =
   where
     game' = initialHalmaState (matchConfig match)
     mGameResult = GameResult . hsFinished <$> matchCurrentGame match
-    

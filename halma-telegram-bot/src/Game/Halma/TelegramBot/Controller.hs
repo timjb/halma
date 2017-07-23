@@ -364,12 +364,12 @@ doAIMove match game = do
     Right afterMove -> do
       case mAIMoveCmd of
         Just moveCmd ->
-          let aiMove =
+          let moveByAi =
                 AIMove
                 { aiHomeCorner = partyHomeCorner currParty
                 , aiMoveCmd = moveCmd
                 }
-          in sendI18nMsg (flip hlAIMove aiMove)
+          in sendI18nMsg (flip hlAIMove moveByAi)
         Nothing -> pure ()
       handleAfterMove match game afterMove >>= sequence_
 

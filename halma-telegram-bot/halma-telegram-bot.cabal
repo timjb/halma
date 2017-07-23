@@ -17,7 +17,7 @@ source-repository head
   location: https://github.com/timjb/halma.git
 
 library
-  Ghc-options: -Wall
+  Ghc-options: -Wall -Werror
   default-language: Haskell2010
   Hs-source-dirs: src
   exposed-modules:
@@ -38,7 +38,7 @@ library
   build-depends:
     base >= 4.6 && < 5,
     halma >= 0.3.0.0 && < 0.4,
-    telegram-api >= 0.6.1.0 && < 0.7,
+    telegram-api >= 0.6.1.1 && < 0.7,
     text,
     transformers,
     servant-client,
@@ -62,7 +62,7 @@ library
     vector
 
 Executable halma-telegram-bot-server
-  Ghc-options: -threaded -Wall
+  Ghc-options: -threaded -Wall -Werror
   default-language: Haskell2010
   Hs-source-dirs: .
   main-is: ServerMain.hs
@@ -74,7 +74,7 @@ Executable halma-telegram-bot-server
     http-client-tls
 
 Executable halma-telegram-bot-serverless
-  Ghc-options: -threaded -Wall
+  Ghc-options: -threaded -Wall -Werror
   default-language: Haskell2010
   Hs-source-dirs: .
   main-is: ServerlessMain.hs

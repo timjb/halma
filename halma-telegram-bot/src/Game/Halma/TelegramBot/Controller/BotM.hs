@@ -14,18 +14,16 @@ module Game.Halma.TelegramBot.Controller.BotM
 
 import Game.Halma.TelegramBot.Controller.Types
 import Game.Halma.TelegramBot.Model
-import Game.Halma.TelegramBot.View.I18n
 
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class (MonadReader (..))
-import Control.Monad.State.Class (MonadState, gets)
+import Control.Monad.State.Class (MonadState)
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State (StateT(..), evalStateT)
 import Network.HTTP.Client (Manager)
 import Servant.Common.Req (ServantError)
 import System.IO (hPrint, stderr)
-import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
 newtype GeneralBotM s a

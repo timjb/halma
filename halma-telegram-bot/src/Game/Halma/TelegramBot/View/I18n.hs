@@ -20,7 +20,6 @@ import Game.Halma.TelegramBot.Model.MoveCmd
 
 import Data.Char (toUpper)
 import Data.Monoid ((<>))
-import qualified Data.Aeson as A
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
