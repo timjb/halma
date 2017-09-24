@@ -28,7 +28,8 @@ before_install:
   - stack exec -- ghc --version
 
 install:
-  - travis_wait stack --no-terminal --install-ghc test --only-dependencies
+  - travis_wait stack --no-terminal install halma --only-dependencies
+  - travis_wait stack --no-terminal install --only-dependencies
 
 script:
   - stack --no-terminal test --haddock --no-haddock-deps
