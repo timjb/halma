@@ -4,7 +4,10 @@ packages:
 - halma-gui
 - halma-telegram-bot
 extra-deps:
-- grid-7.8.8
-- mvc-1.1.4
-- pipes-4.3.3
-resolver: lts-8.23
+- grid-7.8.9
+- mvc-1.1.5
+- pipes-4.3.4
+- telegram-api-0.6.3.0
+- servant-0.10
+- servant-client-0.10
+resolver: lts-9.5
