@@ -22,16 +22,20 @@ import Game.Halma.Board
 import Game.Halma.Rules
 
 import Data.Bifunctor (first)
-import Data.Char (chr, ord, toUpper)
+import Data.Char (chr, ord, toLower, toUpper)
 import Data.List (sortBy)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Monoid ((<>))
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
 import Data.Word (Word8)
+import Data.Void
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Text.Megaparsec as P
+import qualified Text.Megaparsec.Char as P
+
+type Parser = P.Parsec Void T.Text
 
 data TargetModifier
   = TargetModifier
@@ -49,7 +53,7 @@ showTargetModifier (TargetModifier i) =
     _ -> -- i > 1
       T.replicate (i-1) "R"
 
-targetModifierParser :: P.Parsec P.Dec T.Text TargetModifier
+targetModifierParser :: Parser TargetModifier
 targetModifierParser =
   P.choice
     [ TargetModifier . negate . (+1) <$> counting 'L'
@@ -80,6 +84,11 @@ type PieceNumber = Word8
 pieceNumberToChar :: PieceNumber -> Char
 pieceNumberToChar i = chr (ord 'A' + fromIntegral i - 1)
 
+pieceNumberToChars :: PieceNumber -> [Char]
+pieceNumberToChars i =
+  let c = pieceNumberToChar i
+  in [toUpper c, toLower c]
+
 pieceNumberFromChar :: Char -> Maybe PieceNumber
 pieceNumberFromChar c =
   let
@@ -92,9 +101,9 @@ pieceNumberFromChar c =
 showPieceNumber :: PieceNumber -> T.Text
 showPieceNumber = T.singleton . pieceNumberToChar
 
-pieceNumberParser :: P.Parsec P.Dec T.Text PieceNumber
+pieceNumberParser :: Parser PieceNumber
 pieceNumberParser = do
-  c <- P.oneOf' (pieceNumberToChar <$> [1..15]) P.<?> "piece number"
+  c <- P.oneOf (pieceNumberToChars =<< [1..15]) P.<?> "piece number"
   case pieceNumberFromChar c of
     Nothing ->
       fail "unexpected error while parsing piece number"
@@ -131,7 +140,7 @@ showMoveCmd moveCmd =
   T.pack (show (unRowNumber (moveTargetRow moveCmd))) <>
   maybe "" showTargetModifier (moveTargetModifier moveCmd)
 
-moveCmdParser :: P.Parsec P.Dec T.Text MoveCmd
+moveCmdParser :: Parser MoveCmd
 moveCmdParser =
   MoveCmd
     <$> (pieceNumberParser <* P.space)

@@ -31,7 +31,7 @@ import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class (ask)
 import Control.Monad.State.Class (MonadState (..), gets, modify)
-import Servant.Common.Req (ServantError)
+import Servant.Client (ServantError)
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG

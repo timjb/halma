@@ -22,7 +22,7 @@ import Control.Monad.State.Class (MonadState)
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State (StateT(..), evalStateT)
 import Network.HTTP.Client (Manager)
-import Servant.Common.Req (ServantError)
+import Servant.Client (ServantError)
 import System.IO (hPrint, stderr)
 import qualified Web.Telegram.API.Bot as TG
 
