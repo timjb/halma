@@ -1,4 +1,13 @@
 flags: {}
+nix:
+  enable: true
+  packages:
+  - cairo
+  - glib
+  - gtk2
+  - pango
+  - pkgconfig
+  - zlib
 packages:
 - halma
 - halma-gui
