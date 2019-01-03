@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.3.0.1 (2019-01-03)
+
+- Relax upper bounds: Allow `containers-0.6.*`, `aeson-1.4.*`
+
 ## 0.3.0.0 (2017-04-03)
 
 - The pieces on the board are now identifiable by a number from 1 to 15 (for each team); added `Piece` datatype
@@ -11,13 +15,13 @@
 
 ## 0.2.0.1 (2015-07-22)
 
-- Relax upper bounds: Allow mvc-1.1
+- Relax upper bounds: Allow `mvc-1.1.*`
 
 ## 0.2.0.0
 
 - Halma AI added
 - More rule options
-- Upgraded to diagrams-1.3
+- Upgraded to `diagrams-1.3`
 
 ## 0.1.0.1
 
