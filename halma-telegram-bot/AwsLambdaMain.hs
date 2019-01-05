@@ -1,46 +1,42 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Main (main) where
 
 import Game.Halma.TelegramBot.Model.Types (HalmaChat (..))
 import Game.Halma.TelegramBot.Controller (handleUpdate)
 import Game.Halma.TelegramBot.Controller.BotM (evalGlobalBotM)
 import Game.Halma.TelegramBot.Controller.Types (BotPersistence (..), BotConfig (..))
 
+import Aws.Lambda.Configuration (LambdaOptions(..), getRecord, returnAndFail, returnAndSucceed)
 import Control.Lens (set, view)
-import Control.Monad (when, void)
+import Control.Monad (void)
 import Control.Monad.Trans.Resource (runResourceT)
 import Data.Conduit.Attoparsec (sinkParser)
 import Data.Monoid ((<>))
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import System.Environment (getArgs, getEnv)
-import System.Exit (ExitCode(..), exitWith)
-import System.IO (hPutStrLn, stderr, stdout)
+import System.Environment (getEnv)
+import System.IO (stdout)
 import qualified Control.Monad.Trans.AWS as AWS (runAWST)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Aeson as A
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as Encoding
 import qualified Network.AWS as AWS
 import qualified Network.AWS.S3.Types as S3
 import qualified Network.AWS.S3.GetObject as S3
 import qualified Network.AWS.S3.PutObject as S3
 import qualified Web.Telegram.API.Bot as TG
 
-exitWithError :: String -> IO ()
-exitWithError err = do
-  hPutStrLn stderr err
-  exitWith (ExitFailure 1)
-
-showHelp :: IO ()
-showHelp = do
-  putStrLn "This serverless chatbot executable expects"
-  putStrLn "  - an update event from the Telegram Bot API, provided as JSON via stdin"
-  putStrLn "  - the Telegram API token in the environment variable $TELEGRAM_TOKEN"
-  putStrLn "  - the name of the S3 bucket where to save the games in the environment variable $HALMA_S3_BUCKET"
-  putStrLn "It will do some calls to the Telegram API and then exit."
-  putStrLn "Failures will be indicated by a non-zero exit code."
-  exitWith ExitSuccess
+descr :: T.Text
+descr =
+  "Halma AWS Lambda Executable\n\n" <>
+  "This serverless chatbot executable expects\n" <>
+  "  - an update event from the Telegram Bot API, provided as JSON via stdin\n" <>
+  "  - the Telegram API token in the environment variable TELEGRAM_TOKEN\n" <>
+  "  - the name of the S3 bucket where to save the games in the environment variable HALMA_S3_BUCKET\n" <>
+  "It will do some calls to the Telegram API and then exit."
 
 mkTelegramToken :: String -> TG.Token
 mkTelegramToken = TG.Token . ensureIsPrefixOf "bot" . T.pack
@@ -82,24 +78,30 @@ s3Persistence bucket = do
   where
     objectKey chatId = S3.ObjectKey (T.pack (show chatId) <> ".json")
 
-main :: IO ()
-main = do
-  args <- getArgs
-  when ("--help" `elem` args || "-h" `elem` args) showHelp
+updateHandler :: TG.Update -> IO (Either String ())
+updateHandler update = do
   manager <- newManager tlsManagerSettings
   token <- mkTelegramToken <$> getEnv "TELEGRAM_TOKEN"
   bucket <- S3.BucketName . T.pack <$> getEnv "HALMA_S3_BUCKET"
   persistence <- s3Persistence bucket
   let
-    cfg =  
+    cfg =
       BotConfig
         { bcToken = token
         , bcPersistence = persistence
         , bcManager = manager
         }
-  jsonBsl <- BSL.getContents
-  case A.eitherDecode jsonBsl of
-    Left err ->
-      exitWithError $ "Error while decoding JSON provided via stdin: " ++ err
-    Right update ->
-      evalGlobalBotM (handleUpdate update) cfg
+  evalGlobalBotM (handleUpdate update) cfg
+
+main :: IO ()
+main = do
+  LambdaOptions { functionHandler, eventObject, executionUuid } <- getRecord descr
+  case functionHandler of
+    "update" -> do
+       case A.eitherDecode $ BSL.fromStrict $ Encoding.encodeUtf8 eventObject of
+         Left err ->
+           returnAndFail executionUuid $ "Error while decoding JSON: " ++ err
+         Right update -> do
+           res <- updateHandler update
+           either (returnAndFail executionUuid) (returnAndSucceed executionUuid) res
+    _ -> returnAndFail executionUuid $ "Handler '" <> functionHandler <> "' does not exist!"

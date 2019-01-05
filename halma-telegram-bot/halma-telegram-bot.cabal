@@ -73,11 +73,16 @@ Executable halma-telegram-bot-server
     http-client,
     http-client-tls
 
-Executable halma-telegram-bot-serverless
-  Ghc-options: -threaded -Wall -Werror
+Executable aws-lambda-halma-telegram-bot
+  Ghc-options:
+    -Wall
+    -Werror
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
   default-language: Haskell2010
   Hs-source-dirs: .
-  main-is: ServerlessMain.hs
+  main-is: AwsLambdaMain.hs
   build-depends:
     base,
     halma-telegram-bot,
@@ -85,6 +90,7 @@ Executable halma-telegram-bot-serverless
     amazonka,
     amazonka-core,
     amazonka-s3,
+    aws-lambda-haskell-runtime >= 1.0.7,
     bytestring,
     conduit-extra,
     http-client,

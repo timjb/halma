@@ -22,7 +22,7 @@ import qualified Game.Halma.AI.Ignorant as IgnorantAI
 import qualified Game.Halma.AI.Competitive as CompetitiveAI
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
@@ -31,12 +31,12 @@ import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class (ask)
 import Control.Monad.State.Class (MonadState (..), gets, modify)
-import Servant.Client (ServantError)
+import System.IO (hPrint, stderr)
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
 
-getUpdates :: GlobalBotM (Either ServantError [TG.Update])
+getUpdates :: GlobalBotM [TG.Update]
 getUpdates = do
   nid <- gets bsNextId
   let
@@ -44,22 +44,18 @@ getUpdates = do
     timeout = 10
     updateReq token =
       TG.getUpdates token (Just nid) (Just limit) (Just timeout)
-  runReq updateReq >>= \case
-    Left err -> return (Left err)
-    Right (TG.Response updates _resParams) -> do
-      unless (null updates) $ do
-        let nid' = 1 + maximum (map TG.update_id updates)
-        modify (\s -> s { bsNextId = nid' })
-      return (Right updates)
+  TG.Response updates _resParams <- runReq updateReq
+  unless (null updates) $ do
+    let nid' = 1 + maximum (map TG.update_id updates)
+    modify (\s -> s { bsNextId = nid' })
+  return updates
 
 getUpdatesRetry :: GlobalBotM [TG.Update]
 getUpdatesRetry =
-  getUpdates >>= \case
-    Left err -> do
-      printError err
-      liftIO $ threadDelay 1000000 -- wait one second
-      getUpdatesRetry
-    Right updates -> pure updates
+  getUpdates `botCatch` \err -> do
+    liftIO $ hPrint stderr err
+    liftIO $ threadDelay 1000000 -- wait one second
+    getUpdatesRetry
 
 sendCurrentBoard :: HalmaState -> BotM ()
 sendCurrentBoard halmaState =
@@ -68,7 +64,7 @@ sendCurrentBoard halmaState =
     let
       fileUpload = TG.localFileUpload path
       photoReq = TG.uploadPhotoRequest (TG.ChatId chatId) fileUpload
-    logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
+    void $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
 handleCommand cmdCall =
@@ -163,7 +159,7 @@ sendMoveSuggestions sender msg game suggestions = do
           , TG.photo_reply_to_message_id = Just (TG.message_id msg)
           , TG.photo_reply_markup = Just keyboard
           }
-    logErrors $ runReq $ \token -> TG.uploadPhoto token photoReq
+    void $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 announceResult
   :: ExtendedPartyResult
@@ -182,7 +178,7 @@ handleMoveCmd match game moveCmd fullMsg = do
   case TG.from fullMsg of
     Nothing -> do
       sendMsg $ textMsg $
-        "can't identify sender of move command " <> showMoveCmd moveCmd <> "!"
+        "Can't identify sender of move command " <> showMoveCmd moveCmd <> "!"
       pure Nothing
     Just sender -> do
       let
@@ -209,9 +205,8 @@ handleMoveCmd match game moveCmd fullMsg = do
           pure Nothing
         MoveFoundUnique move ->
           case doMove move game of
-            Left err -> do
-              printError err
-              pure Nothing
+            Left err ->
+              botThrow err
             Right afterMove -> do
               handleAfterMove match game afterMove
 

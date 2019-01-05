@@ -45,9 +45,10 @@ Create a bucket on S3. In the following, this bucket is called `halma-telegram-b
 
 Now create a new Lambda function using `lambda-halma-telegram-bot.zip` and these settings:
 
-* **Runtime**: Node.js 6.10
+* **Runtime**: "Use custom runtime in function layer or code"
+* **Layers**: Add one layer with ARN `arn:aws:lambda:eu-central-1:785355572843:layer:haskell-runtime:3`
 * **Trigger**: Use API Gateway as a trigger. Choose "open" as the security setting, so that Telegram can call it.
-* **Handler**: Enter `lambda-handler.handler`
+* **Handler**: Enter `update`
 * **Role**: The lambda function needs to have permissions to call `GetObject`, `PutObject`, `ListBucket` on your newly created bucket. Additionally, as all lambda functions, it must be able to create logs.
   ```json
   {
@@ -76,7 +77,7 @@ Now create a new Lambda function using `lambda-halma-telegram-bot.zip` and these
   * `HALMA_S3_BUCKET`: the name of the bucket created above (e.g. `halma-telegram-bucket`)
 * **Timeout**: As rendering the halma board can take a while, make sure to give the function a sufficient timeout (at least 20 seconds).
 
-Finally, configure the Telegram Bot API to call the created lambda function when there is an update: 
+Finally, configure the Telegram Bot API to call the created lambda function when there is an update:
 
 ```bash
 curl -X POST \

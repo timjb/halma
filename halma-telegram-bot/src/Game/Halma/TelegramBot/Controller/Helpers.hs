@@ -12,6 +12,7 @@ import Game.Halma.TelegramBot.Controller.BotM
 import Game.Halma.TelegramBot.Model
 import Game.Halma.TelegramBot.View.I18n
 
+import Control.Monad (void)
 import Control.Monad.State.Class (gets)
 import qualified Web.Telegram.API.Bot as TG
 import qualified Data.Text as T
@@ -46,7 +47,7 @@ type Msg = ChatId -> TG.SendMessageRequest
 sendMsg :: Msg -> BotM ()
 sendMsg createMsg = do
   chatId <- gets hcId
-  logErrors $ runReq $ \token -> TG.sendMessage token (createMsg chatId)
+  void $ runReq $ \token -> TG.sendMessage token (createMsg chatId)
 
 textMsg :: T.Text -> Msg
 textMsg text chatId =

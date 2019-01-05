@@ -14,6 +14,8 @@ import Game.Halma.TelegramBot.Controller.Persistence (noPersistence, filePersist
 
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import System.Exit (exitFailure)
+import System.IO (hPrint, stderr)
 import qualified Options.Applicative as OA
 
 main :: IO ()
@@ -25,12 +27,16 @@ main = do
       case boOutputDirectory opts of
         Nothing -> noPersistence
         Just outDir -> filePersistence outDir
-    cfg =  
+    cfg =
       BotConfig
         { bcToken = boToken opts
         , bcPersistence = persistence
         , bcManager = manager
         }
   print opts
-  evalGlobalBotM halmaBot cfg
+  evalGlobalBotM halmaBot cfg >>= \case
+    Left e -> do
+      hPrint stderr e
+      exitFailure
+    Right () -> return ()
 
