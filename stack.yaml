@@ -17,5 +17,12 @@ extra-deps:
 - mvc-1.1.7
 - git: https://github.com/Znack/haskell-telegram-api.git
   commit: 7020377c5285c4f5818cdeff5972c0c738dad20a
-- aws-lambda-haskell-runtime-1.0.9
+# https://stackoverflow.com/a/53405714
+- git: git@github.com:brendanhay/amazonka
+  commit: 248f7b2a7248222cc21cef6194cd1872ba99ac5d
+  subdirs:
+  - amazonka
+  - core
+  - amazonka-s3
+- hal-0.1.0
 resolver: lts-12.26

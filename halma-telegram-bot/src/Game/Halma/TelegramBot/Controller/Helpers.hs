@@ -1,5 +1,6 @@
 module Game.Halma.TelegramBot.Controller.Helpers
-  ( translate
+  ( logMsg
+  , translate
   , sendI18nMsg
   , mkKeyboard
   , Msg
@@ -13,9 +14,13 @@ import Game.Halma.TelegramBot.Model
 import Game.Halma.TelegramBot.View.I18n
 
 import Control.Monad (void)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Class (gets)
 import qualified Web.Telegram.API.Bot as TG
 import qualified Data.Text as T
+
+logMsg :: String -> GeneralBotM s ()
+logMsg = liftIO . putStrLn
 
 translate :: (HalmaLocale -> a) -> BotM a
 translate getTranslation = gets (getTranslation . localeById . hcLocale)

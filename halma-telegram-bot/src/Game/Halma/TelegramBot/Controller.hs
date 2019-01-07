@@ -22,7 +22,7 @@ import qualified Game.Halma.AI.Ignorant as IgnorantAI
 import qualified Game.Halma.AI.Competitive as CompetitiveAI
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (when, void)
+import Control.Monad (void)
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
@@ -174,7 +174,7 @@ handleMoveCmd
   -> TG.Message
   -> BotM (Maybe (BotM ()))
 handleMoveCmd match game moveCmd fullMsg = do
-  liftIO $ putStrLn $ T.unpack $ showMoveCmd moveCmd
+  logMsg $ "Received move command: " ++ T.unpack (showMoveCmd moveCmd)
   case TG.from fullMsg of
     Nothing -> do
       sendMsg $ textMsg $
@@ -421,8 +421,11 @@ withHalmaChat
   -> BotM a
   -> GlobalBotM a
 withHalmaChat chatId action = do
+  logMsg "Loading chat state ..."
   chat <- loadHalmaChat chatId
+  logMsg "Loaded chat state."
   (res, chat') <- stateZoom chat action
+  logMsg "Saving chat state ..."
   saveHalmaChat chat'
   return res
 
@@ -430,24 +433,28 @@ handleUpdate
   :: TG.Update
   -> GlobalBotM ()
 handleUpdate update = do
-  liftIO $ print update
+  liftIO $ putStrLn $ "Received update: " ++ show update
   case update of
     TG.Update { TG.update_id = updateId, TG.message = Just msg } -> handleMsg updateId msg
-    _ -> return ()
+    _ -> logMsg "Update does not contain a valid ID or a message. Ignoring."
   where
     handleMsg updateId msg =
       case msg of
         TG.Message { TG.text = Just txt, TG.chat = tgChat } ->
           withHalmaChat (fromIntegral (TG.chat_id tgChat)) $ do
             lastUpdateId <- gets hcLastUpdateId
-            when (updateId > lastUpdateId) $ do
+            if updateId <= lastUpdateId then
+              logMsg "Ignoring duplicate update"
+            else do
               modify $ \chat -> chat { hcLastUpdateId = updateId }
               handleTextMsg txt msg >>= \case
-                Nothing -> return ()
+                Nothing -> logMsg "Text message does not alter the match state."
                 Just action -> do
+                  logMsg "Applying action ..."
                   action
+                  logMsg "Sending new match state ..."
                   sendMatchState
-        _ -> return ()
+        _ -> logMsg "Not a text message update, ignoring"
 
 halmaBot :: GlobalBotM ()
 halmaBot = do

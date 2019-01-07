@@ -47,7 +47,7 @@ Now create a new Lambda function using `lambda-halma-telegram-bot.zip` and these
 
 * **Runtime**: "Use custom runtime in function layer or code"
 * **Layers**: Add one layer with ARN `arn:aws:lambda:eu-central-1:785355572843:layer:haskell-runtime:3`
-* **Trigger**: Use API Gateway as a trigger. Choose "open" as the security setting, so that Telegram can call it.
+* **Trigger**: Use API Gateway as a trigger. Choose "open" as the security setting, so that Telegram can call it. **TODO: more details**
 * **Handler**: Enter `update`
 * **Role**: The lambda function needs to have permissions to call `GetObject`, `PutObject`, `ListBucket` on your newly created bucket. Additionally, as all lambda functions, it must be able to create logs.
   ```json

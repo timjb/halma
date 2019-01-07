@@ -90,7 +90,7 @@ Executable aws-lambda-halma-telegram-bot
     amazonka,
     amazonka-core,
     amazonka-s3,
-    aws-lambda-haskell-runtime >= 1.0.7,
+    hal >= 0.1.0,
     bytestring,
     conduit-extra,
     http-client,

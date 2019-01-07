@@ -8,5 +8,5 @@ cabal.config
 # macOS
 .DS_Store
 
-lambda-halma-telegram-bot.zip
+aws-lambda-halma-telegram-bot.zip
 halma-chats
