@@ -186,20 +186,13 @@ renderMenu config =
          )
     allButtons = case configurationGrid config of
       SmallGrid ->
-        let
-          nopL =
-            case configurationPlayers config of
-              TwoPlayers () () -> TwoPlayers () ()
-              ThreePlayers () () () -> ThreePlayers () () ()
-              _ -> error "impossible"
-        in
-          ( [ button "Small Grid" ButtonSelected
-            , button "Large Grid" $ ButtonActive $ setLargeGrid config
-            ]
-          , [ button "Two Players" $ configButtonAction $ twoPlayersOnSmallGrid () ()
-            , button "Three Players" $ configButtonAction $ threePlayersOnSmallGrid () () ()
-            ] ++ map (flip button ButtonInactive) ["Four Players", "Five Players", "Six Players"]
-          )
+        ( [ button "Small Grid" ButtonSelected
+          , button "Large Grid" $ ButtonActive $ setLargeGrid config
+          ]
+        , [ button "Two Players" $ configButtonAction $ twoPlayersOnSmallGrid () ()
+          , button "Three Players" $ configButtonAction $ threePlayersOnSmallGrid () () ()
+          ] ++ map (flip button ButtonInactive) ["Four Players", "Five Players", "Six Players"]
+        )
       LargeGrid ->
         let
           smallConfig =
@@ -277,8 +270,7 @@ external = managed $ \f -> do
       figure (fromIntegral w, fromIntegral h)
     renderFigure = tryEvent $ do
       win <- eventWindow
-      liftIO $ putStr "Render time: "
-      liftIO $ timeIt $ resizedFigure >>= renderToGtk win
+      timeItNamed "Rendering board" $ liftIO $ resizedFigure >>= renderToGtk win
     updateViewState vs = do
       _ <- tryTakeMVar viewState
       putMVar viewState vs

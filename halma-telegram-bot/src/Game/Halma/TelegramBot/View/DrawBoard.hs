@@ -20,8 +20,7 @@ import Diagrams.TwoD.Types (V2 (..))
 import System.Directory (getTemporaryDirectory)
 import System.IO (hClose)
 import System.IO.Temp (withTempFile)
-import System.CPUTime (getCPUTime)
-import Text.Printf (printf)
+import System.TimeIt (timeItNamed)
 import qualified Data.Text as T
 import qualified Data.Map as M
 import qualified Diagrams.Prelude as D
@@ -41,12 +40,7 @@ withRenderedBoardInPngFile game labels action =
     let
       dia = drawBoardForChat game labels # D.centerXY # D.pad 1.1
       bounds = dims (V2 1000 1000)
-    liftIO $ do
-      t1 <- getCPUTime
-      renderRasterific path bounds dia
-      t2 <- getCPUTime
-      let renderTimeInSec = fromIntegral (t2-t1) * 1e-12 :: Float
-      printf "[note] Rendering the board took %.2fs in CPU time\n" renderTimeInSec
+    timeItNamed "Render board" $ liftIO $ renderRasterific path bounds dia
     action path
   where
     withTempPngFilePath handler = do

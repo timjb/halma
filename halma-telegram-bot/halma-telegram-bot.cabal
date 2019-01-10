@@ -59,7 +59,8 @@ library
     optparse-applicative,
     filepath,
     bytestring,
-    vector
+    vector,
+    timeit >= 2.0 && < 2.1
 
 Executable halma-telegram-bot-server
   Ghc-options: -threaded -Wall -Werror

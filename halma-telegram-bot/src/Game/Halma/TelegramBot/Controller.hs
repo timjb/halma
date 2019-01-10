@@ -32,6 +32,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class (ask)
 import Control.Monad.State.Class (MonadState (..), gets, modify)
 import System.IO (hPrint, stderr)
+import System.TimeIt (timeItNamed)
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
@@ -64,7 +65,8 @@ sendCurrentBoard halmaState =
     let
       fileUpload = TG.localFileUpload path
       photoReq = TG.uploadPhotoRequest (TG.ChatId chatId) fileUpload
-    void $ runReq $ \token -> TG.uploadPhoto token photoReq
+    timeItNamed "Uploading and sending board image" $
+      void $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
 handleCommand cmdCall =
@@ -353,20 +355,21 @@ doAIMove match game = do
       else
         IgnorantAI.aiMove rules board (partyHomeCorner currParty)
     mAIMoveCmd = moveToMoveCmd rules board aiMove
-  case doMove aiMove game of
-    Left err ->
-      fail $ "doing an AI move failed unexpectedly: " ++ err
-    Right afterMove -> do
-      case mAIMoveCmd of
-        Just moveCmd ->
-          let moveByAi =
-                AIMove
-                { aiHomeCorner = partyHomeCorner currParty
-                , aiMoveCmd = moveCmd
-                }
-          in sendI18nMsg (flip hlAIMove moveByAi)
-        Nothing -> pure ()
-      handleAfterMove match game afterMove >>= sequence_
+  afterMove <- timeItNamed "Calculating AI move" $
+    case doMove aiMove game of
+      Left err ->
+        fail $ "doing an AI move failed unexpectedly: " ++ err
+      Right afterMove -> pure afterMove
+  case mAIMoveCmd of
+    Just moveCmd ->
+      let moveByAi =
+            AIMove
+            { aiHomeCorner = partyHomeCorner currParty
+            , aiMoveCmd = moveCmd
+            }
+      in sendI18nMsg (flip hlAIMove moveByAi)
+    Nothing -> pure ()
+  handleAfterMove match game afterMove >>= sequence_
 
 sendGameState :: Match -> HalmaState -> BotM ()
 sendGameState match game = do
