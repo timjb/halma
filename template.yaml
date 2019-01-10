@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Halma Telegram Bot Running on AWS Lambda
+Parameters:
+  TelegramTokenParam:
+    NoEcho: true # hide
+    Type: String
+Resources:
+  HalmaBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: "halma-chats-bucket"
+      VersioningConfiguration:
+        Status: Suspended
+  HalmaTelegramBot:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: NOT_USED
+      Runtime: provided
+      CodeUri: build
+      Description: Halma Telegram Bot Running on AWS Lambda
+      MemorySize: 192 # MB
+      Timeout: 30 # seconds
+      Policies:
+      - AWSLambdaExecute # Managed Policy
+      - Version: '2012-10-17' # Policy Document
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: 'arn:aws:logs:*:*:*'
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          Resource: 'arn:aws:s3:::halma-chats-bucket'
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          - s3:PutObject
+          Resource: !Join
+          - ''
+          - - !GetAtt HalmaBucket.Arn
+            - '/*'
+      Environment:
+        Variables:
+          HALMA_S3_BUCKET: halma-chats-bucket
+          TELEGRAM_TOKEN: !Ref TelegramTokenParam
+      Events:
+        HalmaTelegramWebhook:
+          Type: Api
+          Properties:
+            Path: "/halma-telegram-bot"
+            Method: POST
+            RestApiId: !Ref HalmaTelegramApi
+  #GatewayLogGroup:
+  #  Type: "AWS::Logs::LogGroup"
+  #  Properties:
+  #    LogGroupName: !Sub "/${AWS::StackName}-gateway-access-log"
+  #    RetentionInDays: 7
+  HalmaTelegramApi:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      StageName: "Prod"
+      #AccessLogSetting:
+      #  DestinationArn: !GetAtt "GatewayLogGroup.Arn"
+      MethodSettings:
+      - HttpMethod: '*'
+        ResourcePath: '/*'
+        DataTraceEnabled: true
+        LoggingLevel: INFO
+        MetricsEnabled: true
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 100.0
+      DefinitionBody:
+        swagger: "2.0"
+        paths:
+          "/halma-telegram-bot":
+            post:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: OK
+                '500':
+                  description: Error
+              x-amazon-apigateway-integration:
+                type: aws
+                httpMethod: POST
+                passthroughBehavior: when_no_templates
+                responses:
+                  default:
+                    statusCode: 200
+                  "(\\n|.)+":
+                    statusCode: 500
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HalmaTelegramBot.Arn}/invocations"
+Outputs:
+  WebhookUrl:
+    Description: The URL of the webhook for getting updates from the Telegram Bot API
+    Value: !Sub "https://${HalmaTelegramApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/halma-telegram-bot"
+# TODO:
+# - use generated name for S3 bucket?
+# - expire logs

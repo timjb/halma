@@ -26,64 +26,55 @@ There is a chatbot running on AWS Lambda: [@halma_bot](http://telegram.me/halma_
 
 (Please be patient, it sometimes needs a few seconds to respond.)
 
-### Deploying the Telegram bot on AWS Lambda
+### Building and deploying the Telegram bot on AWS Lambda
 
-First, you need to build a Linux executable using Docker with Stack:
-
-```bash
-$ stack docker pull
-$ stack build halma-telegram-bot --docker
-```
-
-The last command takes some while. It produces the name of a directory where you can find the compiled executable. Now, we must bundle that executable together with a wrapper written with node:
+The following command builds and deploys the Telegram bot on AWS Lambda:
 
 ```bash
-$ zip -j lambda-halma-telegram-bot.zip halma-telegram-bot/lambda-handler.js .stack-work/install/x86_64-linux-dkda49f7ca9b244180d3cfb1987cbc9743/lts-8.8/8.0.2/bin/halma-telegram-bot-serverless
+$ python3 build_and_deploy_to_lambda.py \
+    --telegram-token 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11 \
+    --stack-name telegram-halma-stack \
+    --code-s3-bucket my-code-bucket # the executable will be uploaded to this bucket
 ```
 
-Create a bucket on S3. In the following, this bucket is called `halma-telegram-bucket`. This bucket will be used for saving the game state.
+This Python 3.7 script depends on `stack`, `docker` and `awscli` being installed (and in the `PATH`). When `nix-shell` is installed, this script can also be called using
 
-Now create a new Lambda function using `lambda-halma-telegram-bot.zip` and these settings:
+```bash
+$ ./build_and_deploy_to_lambda.py [...]
+```
 
-* **Runtime**: "Use custom runtime in function layer or code"
-* **Layers**: Add one layer with ARN `arn:aws:lambda:eu-central-1:785355572843:layer:haskell-runtime:3`
-* **Trigger**: Use API Gateway as a trigger. Choose "open" as the security setting, so that Telegram can call it. **TODO: more details**
-* **Handler**: Enter `update`
-* **Role**: The lambda function needs to have permissions to call `GetObject`, `PutObject`, `ListBucket` on your newly created bucket. Additionally, as all lambda functions, it must be able to create logs.
-  ```json
-  {
-    "Version": "2017-04-04",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
-        "Resource": "arn:aws:logs:*:*:*"
-      },
-      {
-        "Effect": "Allow",
-        "Action": ["s3:ListBucket"],
-        "Resource": "arn:aws:s3:::halma-telegram-bucket"
-      },
-      {
-        "Effect": "Allow",
-        "Action": ["s3:PutObject", "s3:GetObject"],
-        "Resource": "arn:aws:s3:::halma-telegram-bucket/*"
-      }
-    ]
-  }
-  ```
-* **Environment variables**:
-  * `TELEGRAM_TOKEN`: the token you got from the Botfather (e.g. `bot191051711:AAHJAuoSfO_jF254ola6RPhTX2dopur8U8w`)
-  * `HALMA_S3_BUCKET`: the name of the bucket created above (e.g. `halma-telegram-bucket`)
-* **Timeout**: As rendering the halma board can take a while, make sure to give the function a sufficient timeout (at least 20 seconds).
+This will automatically install the required dependencies on the first run. Before the first run, you also need to run:
 
-Finally, configure the Telegram Bot API to call the created lambda function when there is an update:
+```bash
+$ stack docker pull # download the Docker image for building
+$ aws configure # configure authentication and default region (if you haven't done so already)
+```
+
+If deployment is successful, the script prints out the URL where the Lambda function can be invoked:
+
+```
+[...]
+Webhook URL: https://abcdefghijk.execute-api.eu-central-1.amazonaws.com/Prod/halma-telegram-bot
+```
+
+Now, you may run a simple smoke test:
+
+```bash
+$ curl --header "Content-Type: application/json" \
+       --request POST \
+       --data '{"update_id":123412341234}' \
+       https://abcdefghijk.execute-api.eu-central-1.amazonaws.com/Prod/halma-telegram-bot
+```
+
+To configure the Telegram Bot API to call the created lambda function when there is an update run
 
 ```bash
 curl -X POST \
   --url 'https://api.telegram.org/bot123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11/setWebhook' \
-  -d 'url=https://abcdefghijk.execute-api.eu-central-1.amazonaws.com/prod/halma_telegram_bot_handler'
+  -d 'url=https://abcdefghijk.execute-api.eu-central-1.amazonaws.com/Prod/halma-telegram-bot'
 ```
+
+with `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11` replaced by your Telegram API access token.
 
 [travis-image]: https://img.shields.io/travis/timjb/halma.svg
 [travis-url]: http://travis-ci.org/timjb/halma

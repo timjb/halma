@@ -8,5 +8,8 @@ cabal.config
 # macOS
 .DS_Store
 
-aws-lambda-halma-telegram-bot.zip
 halma-chats
+
+# deployment artifacts
+build
+deploy.yaml
