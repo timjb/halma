@@ -36,13 +36,16 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Web.Telegram.API.Bot as TG
 
--- TODO: remove this orphan instance
-deriving instance Eq TG.User
-
 data Player
   = AIPlayer
   | TelegramPlayer TG.User
-  deriving (Eq, Show)
+  deriving (Show)
+
+instance Eq Player where
+  AIPlayer == AIPlayer = True
+  TelegramPlayer p1 == TelegramPlayer p2 =
+    TG.user_id p1 == TG.user_id p2
+  _ == _ = False
 
 instance A.ToJSON Player where
   toJSON = \case

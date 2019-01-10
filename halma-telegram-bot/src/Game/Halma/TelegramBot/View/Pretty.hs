@@ -30,7 +30,7 @@ prettyPlayer player =
     TelegramPlayer user -> prettyUser user
 
 prettyLocaleId :: LocaleId -> T.Text
-prettyLocaleId localeId = 
+prettyLocaleId localeId =
   case localeId of
     De -> "\127465\127466 de" -- german flag :de:
     En -> "\127468\127463 en" -- union jack :gb:
@@ -40,7 +40,7 @@ parsePrettyLocaleId s =
   lookup (T.strip s) table
   where
     table = map (\locId -> (prettyLocaleId locId, locId)) [minBound..maxBound]
-    
+
 teamEmoji :: Team -> T.Text
 teamEmoji dir =
   case dir of
