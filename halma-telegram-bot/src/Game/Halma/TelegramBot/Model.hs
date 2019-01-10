@@ -24,6 +24,7 @@ initialHalmaChat chatId =
   HalmaChat
     { hcId = chatId
     , hcLastUpdateId = 0
+    , hcLastUpdateDate = 0
     , hcLocale = En
     , hcMatchState = NoMatch
     }

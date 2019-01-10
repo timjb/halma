@@ -443,13 +443,14 @@ handleUpdate update = do
   where
     handleMsg updateId msg =
       case msg of
-        TG.Message { TG.text = Just txt, TG.chat = tgChat } ->
+        TG.Message { TG.text = Just txt, TG.date = date, TG.chat = tgChat } ->
           withHalmaChat (fromIntegral (TG.chat_id tgChat)) $ do
             lastUpdateId <- gets hcLastUpdateId
-            if updateId <= lastUpdateId then
+            lastUpdateDate <- gets hcLastUpdateDate
+            if updateId <= lastUpdateId && lastUpdateDate + dayInSeconds > date then
               logMsg "Ignoring duplicate update"
             else do
-              modify $ \chat -> chat { hcLastUpdateId = updateId }
+              modify $ \chat -> chat { hcLastUpdateId = updateId, hcLastUpdateDate = date }
               handleTextMsg txt msg >>= \case
                 Nothing -> logMsg "Text message does not alter the match state."
                 Just action -> do
@@ -458,6 +459,7 @@ handleUpdate update = do
                   logMsg "Sending new match state ..."
                   sendMatchState
         _ -> logMsg "Not a text message update, ignoring"
+    dayInSeconds = 24*60*60
 
 halmaBot :: GlobalBotM ()
 halmaBot = do
