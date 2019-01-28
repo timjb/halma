@@ -24,12 +24,12 @@ before_install:
   - stack --version
 
   # GHC
-  - stack setup
-  - stack exec -- ghc --version
+  - stack --no-nix setup
+  - stack exec --no-nix -- ghc --version
 
 install:
-  - travis_wait stack --no-terminal install halma --only-dependencies
-  - travis_wait stack --no-terminal install --only-dependencies
+  - travis_wait stack --no-nix --no-terminal install halma --only-dependencies
+  - travis_wait stack --no-nix --no-terminal install --only-dependencies
 
 script:
-  - stack --no-terminal test --haddock --no-haddock-deps
+  - stack --no-nix --no-terminal test --haddock --no-haddock-deps
