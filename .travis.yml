@@ -29,6 +29,7 @@ before_install:
 
 install:
   - travis_wait stack --no-nix --no-terminal install halma --only-dependencies
+  - travis_wait stack --no-nix --no-terminal install halma-gui --only-dependencies
   - travis_wait stack --no-nix --no-terminal install --only-dependencies
 
 script:
