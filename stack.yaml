@@ -18,7 +18,7 @@ extra-deps:
 - git: https://github.com/Znack/haskell-telegram-api.git
   commit: 7020377c5285c4f5818cdeff5972c0c738dad20a
 # https://stackoverflow.com/a/53405714
-- git: git@github.com:brendanhay/amazonka
+- git: https://github.com/brendanhay/amazonka.git
   commit: 248f7b2a7248222cc21cef6194cd1872ba99ac5d
   subdirs:
   - amazonka
