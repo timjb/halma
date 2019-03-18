@@ -89,7 +89,7 @@ data ExtendedPartyResult
 newtype GameResult
   = GameResult
   { grNumberOfMoves :: [PartyResult]
-  } deriving (Show)
+  } deriving (Eq, Show)
 
 instance A.ToJSON GameResult where
   toJSON gameResult =
@@ -157,7 +157,7 @@ data Match
   , matchRules :: RuleOptions
   , matchHistory :: [GameResult]
   , matchCurrentGame :: Maybe HalmaState
-  } deriving (Show)
+  } deriving (Eq, Show)
 
 instance A.ToJSON Match where
   toJSON match =
@@ -187,7 +187,7 @@ data PlayersSoFar a
   = NoPlayers
   | OnePlayer a
   | EnoughPlayers (Configuration a)
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance A.ToJSON a => A.ToJSON (PlayersSoFar a) where
   toJSON =
@@ -213,7 +213,7 @@ data MatchState
   = NoMatch
   | GatheringPlayers (PlayersSoFar Player)
   | MatchRunning Match
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance A.ToJSON MatchState where
   toJSON =
@@ -282,7 +282,7 @@ data HalmaChat
   , hcLastUpdateDate :: Int -- ^ in Unix time
   , hcLocale :: LocaleId
   , hcMatchState :: MatchState
-  } deriving (Show)
+  } deriving (Eq, Show)
 
 instance A.ToJSON HalmaChat where
   toJSON HalmaChat {..} =

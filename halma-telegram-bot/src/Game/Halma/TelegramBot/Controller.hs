@@ -22,7 +22,7 @@ import qualified Game.Halma.AI.Ignorant as IgnorantAI
 import qualified Game.Halma.AI.Competitive as CompetitiveAI
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
@@ -68,64 +68,57 @@ sendCurrentBoard halmaState =
     timeItNamed "Uploading and sending board image (CPU time)" $
       void $ runReq $ \token -> TG.uploadPhoto token photoReq
 
-handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
+handleCommand :: CmdCall -> BotM ()
 handleCommand cmdCall =
   case cmdCall of
     CmdCall { cmdCallName = "help" } -> do
       sendI18nMsg hlHelpMsg
-      pure Nothing
-    CmdCall { cmdCallName = "start" } ->
-      pure $ Just $ do
-        modify $ \chat ->
-          chat { hcMatchState = NoMatch }
-        sendI18nMsg hlWelcomeMsg
+    CmdCall { cmdCallName = "start" } -> do
+      modify $ \chat ->
+        chat { hcMatchState = NoMatch }
+      sendI18nMsg hlWelcomeMsg
+      sendMatchState
     CmdCall { cmdCallName = "setlang", cmdCallArgs = Nothing } -> do
-      sendMsg $ textMsg $
-        "/setlang expects an argument!"
-      pure Nothing
+      sendMsg $ textMsg "/setlang expects an argument!"
     CmdCall { cmdCallName = "setlang", cmdCallArgs = Just arg } ->
       case parsePrettyLocaleId arg of
-        Just localeId ->
-          pure $ Just $
-            modify $ \chat -> chat { hcLocale = localeId }
+        Just localeId -> do
+          modify $ \chat -> chat { hcLocale = localeId }
+          sendMatchState
         Nothing -> do
           sendMsg $ textMsg $
             "Could not parse language. Must be one of the following strings: " <>
             T.intercalate ", " (map prettyLocaleId allLocaleIds)
-          pure Nothing
-    CmdCall { cmdCallName = "newmatch" } ->
-      pure $ Just $ modify $ \chat ->
+    CmdCall { cmdCallName = "newmatch" } -> do
+      modify $ \chat ->
         chat { hcMatchState = GatheringPlayers NoPlayers }
+      sendMatchState
     CmdCall { cmdCallName = "newround" } -> do
       matchState <- gets hcMatchState
       case matchState of
-        MatchRunning match ->
-          pure $ Just $ do
-            sendI18nMsg hlStartingANewRound
-            modify $ \chat ->
-              chat { hcMatchState = MatchRunning (newRound match) }
+        MatchRunning match -> do
+          sendI18nMsg hlStartingANewRound
+          modify $ \chat ->
+            chat { hcMatchState = MatchRunning (newRound match) }
+          sendMatchState
         _ -> do
           sendI18nMsg hlCantStartNewRoundBecauseNoMatch
-          pure Nothing
     CmdCall { cmdCallName = "undo" } -> do
       matchState <- gets hcMatchState
       case matchState of
         MatchRunning match@Match{ matchCurrentGame = Just game } ->
           case undoLastMove game of
-            Just game' ->
+            Just game' -> do
               let
                 match' = match { matchCurrentGame = Just game' }
-              in
-                pure $ Just $
-                  modify $ \chat ->
-                    chat { hcMatchState = MatchRunning match' }
+              modify $ \chat ->
+                chat { hcMatchState = MatchRunning match' }
+              sendMatchState
             Nothing -> do
               sendI18nMsg (flip hlCantUndo Nothing)
-              pure Nothing
         _ -> do
           sendI18nMsg (flip hlCantUndo (Just CantUndoNoGame))
-          pure Nothing
-    _ -> pure Nothing
+    _ -> pure ()
 
 sendMoveSuggestions
   :: TG.User
@@ -174,14 +167,13 @@ handleMoveCmd
   -> HalmaState
   -> MoveCmd
   -> TG.Message
-  -> BotM (Maybe (BotM ()))
+  -> BotM ()
 handleMoveCmd match game moveCmd fullMsg = do
   logMsg $ "Received move command: " ++ T.unpack (showMoveCmd moveCmd)
   case TG.from fullMsg of
     Nothing -> do
       sendMsg $ textMsg $
         "Can't identify sender of move command " <> showMoveCmd moveCmd <> "!"
-      pure Nothing
     Just sender -> do
       let
         currParty = currentPlayer (hsTurnCounter game)
@@ -197,16 +189,13 @@ handleMoveCmd match game moveCmd fullMsg = do
                 , thePlayerWhoseTurnItIs = player
                 }
           sendI18nMsg (flip hlNotYourTurn notYourTurnInfo)
-          pure Nothing
         MoveImpossible reason -> do
           logMsg $ "Move is not possible: " <> reason
           sendMsg $ textMsg $
             "This move is not possible: " <> T.pack reason
-          pure Nothing
         MoveSuggestions suggestions -> do
           logMsg "Command does not describe a unique move. Sending suggestions ..."
           sendMoveSuggestions sender fullMsg game suggestions
-          pure Nothing
         MoveFoundUnique move -> do
           logMsg "Move is valid"
           case doMove move game of
@@ -219,7 +208,7 @@ handleAfterMove
   :: Match
   -> HalmaState
   -> AfterMove
-  -> BotM (Maybe (BotM ()))
+  -> BotM ()
 handleAfterMove match game afterMove =
   case afterMove of
     GameEnded lastResult -> do
@@ -234,40 +223,39 @@ handleAfterMove match game afterMove =
             { matchCurrentGame = Nothing
             , matchHistory = matchHistory match ++ [gameResult]
             }
-      pure $ Just $
-        modify $ \chat ->
-          chat { hcMatchState = MatchRunning match' }
+      modify $ \chat ->
+        chat { hcMatchState = MatchRunning match' }
+      sendMatchState
       -- TODO: offer to start new game
     GameContinues mPartyResult game' -> do
       mapM_ announceResult mPartyResult
       let
         match' = match { matchCurrentGame = Just game' }
-      pure $ Just $
-        modify $ \chat ->
-          chat { hcMatchState = MatchRunning match' }
+      modify $ \chat ->
+        chat { hcMatchState = MatchRunning match' }
+      sendMatchState
 
 handleTextMsg
   :: T.Text
   -> TG.Message
-  -> BotM (Maybe (BotM ()))
+  -> BotM ()
 handleTextMsg text fullMsg = do
   matchState <- gets hcMatchState
   case (matchState, text) of
     (_, parseCmdCall -> Just cmdCall) ->
       handleCommand cmdCall
-    ( MatchRunning match@Match { matchCurrentGame = Just game }, parseMoveCmd -> Right moveCmd) ->
+    (MatchRunning match@Match { matchCurrentGame = Just game }, parseMoveCmd -> Right moveCmd) ->
       handleMoveCmd match game moveCmd fullMsg
-    (GatheringPlayers players, "me") ->
-      pure $ Just (addTelegramPlayer players)
-    (GatheringPlayers players, "yes, me") ->
-      pure $ Just (addTelegramPlayer players)
-    (GatheringPlayers players, "an AI") ->
-      pure $ Just (addAIPlayer players)
-    (GatheringPlayers players, "yes, an AI") ->
-      pure $ Just (addAIPlayer players)
-    (GatheringPlayers (EnoughPlayers config), "no") ->
-      pure $ Just (startMatch config)
-    _ -> pure Nothing
+    (GatheringPlayers players, (`elem` ["me", "yes, me"]) -> True) -> do
+      addTelegramPlayer players
+      sendMatchState
+    (GatheringPlayers players, (`elem` ["an AI", "yes, an AI"]) -> True) -> do
+      addAIPlayer players
+      sendMatchState
+    (GatheringPlayers (EnoughPlayers config), "no") -> do
+      startMatch config
+      sendMatchState
+    _ -> pure ()
   where
     addPlayer :: Player -> PlayersSoFar Player -> BotM ()
     addPlayer new playersSoFar = do
@@ -372,7 +360,7 @@ doAIMove match game = do
             }
       in sendI18nMsg (flip hlAIMove moveByAi)
     Nothing -> pure ()
-  handleAfterMove match game afterMove >>= sequence_
+  handleAfterMove match game afterMove
 
 sendGameState :: Match -> HalmaState -> BotM ()
 sendGameState match game = do
@@ -388,6 +376,7 @@ sendGameState match game = do
 
 sendMatchState :: BotM ()
 sendMatchState = do
+  logMsg "Sending match state ..."
   matchState <- gets hcMatchState
   case matchState of
     NoMatch ->
@@ -432,7 +421,8 @@ withHalmaChat chatId action = do
   logMsg "Loaded chat state."
   (res, chat') <- stateZoom chat action
   logMsg "Saving chat state ..."
-  saveHalmaChat chat'
+  when (chat /= chat') $
+    saveHalmaChat chat'
   return res
 
 handleUpdate
@@ -454,13 +444,7 @@ handleUpdate update = do
               logMsg "Ignoring duplicate update"
             else do
               modify $ \chat -> chat { hcLastUpdateId = updateId, hcLastUpdateDate = date }
-              handleTextMsg txt msg >>= \case
-                Nothing -> logMsg "Text message does not alter the match state."
-                Just action -> do
-                  logMsg "Applying action ..."
-                  action
-                  logMsg "Sending new match state ..."
-                  sendMatchState
+              handleTextMsg txt msg
         _ -> logMsg "Not a text message update, ignoring"
     dayInSeconds = 24*60*60
 
