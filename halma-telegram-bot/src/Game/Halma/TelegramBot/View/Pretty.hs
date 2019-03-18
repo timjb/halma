@@ -2,7 +2,6 @@
 
 module Game.Halma.TelegramBot.View.Pretty
   ( prettyUser
-  , prettyPlayer
   , localeFlag
   , teamEmoji
   ) where
@@ -21,12 +20,6 @@ prettyUser user =
     Nothing ->
       TG.user_first_name user <>
       maybe "" (" " <>) (TG.user_last_name user)
-
-prettyPlayer :: Player -> T.Text
-prettyPlayer player =
-  case player of
-    AIPlayer -> "AI"
-    TelegramPlayer user -> prettyUser user
 
 localeFlag :: LocaleId -> T.Text
 localeFlag localeId =

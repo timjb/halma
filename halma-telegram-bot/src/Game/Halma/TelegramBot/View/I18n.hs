@@ -14,11 +14,13 @@ module Game.Halma.TelegramBot.View.I18n
   ) where
 
 import Game.Halma.Board (HalmaDirection)
+import Game.Halma.Configuration
 import Game.Halma.TelegramBot.Model.Types
 import Game.Halma.TelegramBot.View.Pretty
 import Game.Halma.TelegramBot.Model.MoveCmd
 
 import Data.Char (toUpper)
+import Data.Foldable (toList)
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 import qualified Web.Telegram.API.Bot as TG
@@ -55,6 +57,12 @@ data HalmaLocale
   , hlAIMove :: AIMove -> T.Text
   , hlNoMatchMsg :: T.Text
   , hlNoRoundMsg :: T.Text
+  , hlGatheringPlayersMsg :: PlayersSoFar Player -> T.Text
+  , hlMe :: T.Text
+  , hlAnAI :: T.Text
+  , hlYesMe :: T.Text
+  , hlYesAnAI :: T.Text
+  , hlNo :: T.Text
   }
 
 -- | English
@@ -102,6 +110,12 @@ enHalmaLocale =
         "Start a new Halma match with /" <> newMatchCmd
     , hlNoRoundMsg =
         "Start a new round with /" <> newRoundCmd
+    , hlGatheringPlayersMsg = gatheringPlayersMsg
+    , hlMe = "me"
+    , hlAnAI = "an AI"
+    , hlYesMe = "yes, me"
+    , hlYesAnAI = "yes, an AI"
+    , hlNo = "no"
     }
   where
     newMatchCmd, newRoundCmd, undoCmd, helpCmd :: T.Text
@@ -138,6 +152,34 @@ enHalmaLocale =
           prettyUser user <> ", " <>
           "you are " <> nominal (i+1) <>
           " " <> deficitMsg result
+    prettyPlayer :: Player -> T.Text
+    prettyPlayer player =
+      case player of
+        AIPlayer -> "AI"
+        TelegramPlayer user -> prettyUser user
+    prettyList :: [T.Text] -> T.Text
+    prettyList xs =
+      case xs of
+        [] -> "<empty list>"
+        [x] -> x
+        _:_:_ -> T.intercalate ", " (init xs) <> " and " <> last xs
+    gatheringPlayersMsg = \case
+      NoPlayers -> "Starting a new match! Who is the first player?"
+      OnePlayer firstPlayer ->
+        "The first player is " <> prettyPlayer firstPlayer <> ".\n" <>
+        "Who is the second player?"
+      EnoughPlayers config ->
+        let
+          (count, nextOrdinal) = case configurationPlayers config of
+            TwoPlayers {}   -> ("two", "third")
+            ThreePlayers {} -> ("three", "fourth")
+            FourPlayers {}  -> ("four", "fifth")
+            FivePlayers {}  -> ("five", "sixth")
+            SixPlayers {}   -> error "unexpected state: gathering players although there are already six!"
+        in
+          "The first " <> count <> " players are " <>
+          prettyList (map prettyPlayer (toList (configurationPlayers config))) <> ".\n" <>
+          "Is there a " <> nextOrdinal <> " player?"
 
 -- | German (deutsch)
 deHalmaLocale :: HalmaLocale
@@ -185,6 +227,12 @@ deHalmaLocale =
         "Starte einen neuen Halma-Wettkampf mit /" <> newMatchCmd
     , hlNoRoundMsg =
         "Starte eine neue Runde mit /" <> newRoundCmd
+    , hlGatheringPlayersMsg = gatheringPlayersMsg
+    , hlMe = "ich"
+    , hlAnAI = "eine KI"
+    , hlYesMe = "ja, ich"
+    , hlYesAnAI = "ja, eine KI"
+    , hlNo = "nein"
     }
   where
     newMatchCmd, newRoundCmd, undoCmd, helpCmd :: T.Text
@@ -226,6 +274,34 @@ deHalmaLocale =
           (if eprPlaceShared result then "auch " else "") <>
           capitalize (nominal (i+1)) <>
           " " <> deficitMsg result
+    prettyPlayer :: Player -> T.Text
+    prettyPlayer player =
+      case player of
+        AIPlayer -> "eine KI"
+        TelegramPlayer user -> prettyUser user
+    prettyList :: [T.Text] -> T.Text
+    prettyList xs =
+      case xs of
+        [] -> "<leere Liste>"
+        [x] -> x
+        _:_:_ -> T.intercalate ", " (init xs) <> " und " <> last xs
+    gatheringPlayersMsg = \case
+      NoPlayers -> "Ein neuer Wettkampf! Wer macht mit?"
+      OnePlayer firstPlayer ->
+        prettyPlayer firstPlayer <> " fängt also an.\n" <>
+        "Wer macht noch mit?"
+      EnoughPlayers config ->
+        let
+          count = case configurationPlayers config of
+            TwoPlayers {}   -> "zwei"
+            ThreePlayers {} -> "drei"
+            FourPlayers {}  -> "vier"
+            FivePlayers {}  -> "fünf"
+            SixPlayers {}   -> "secht"
+        in
+          "Die ersten " <> count <> " Parteien sind " <>
+          prettyList (map prettyPlayer (toList (configurationPlayers config))) <> ".\n" <>
+          "Macht noch jemand mit?"
 
 capitalize :: T.Text -> T.Text
 capitalize t =

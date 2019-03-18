@@ -240,18 +240,19 @@ handleTextMsg
   -> BotM ()
 handleTextMsg text fullMsg = do
   matchState <- gets hcMatchState
+  locale <- getLocale
   case (matchState, text) of
     (_, parseCmdCall -> Just cmdCall) ->
       handleCommand cmdCall
     (MatchRunning match@Match { matchCurrentGame = Just game }, parseMoveCmd -> Right moveCmd) ->
       handleMoveCmd match game moveCmd fullMsg
-    (GatheringPlayers players, (`elem` ["me", "yes, me"]) -> True) -> do
+    (GatheringPlayers players, (`elem` [hlMe locale, hlYesMe locale]) -> True) -> do
       addTelegramPlayer players
       sendMatchState
-    (GatheringPlayers players, (`elem` ["an AI", "yes, an AI"]) -> True) -> do
+    (GatheringPlayers players, (`elem` [hlAnAI locale, hlYesAnAI locale]) -> True) -> do
       addAIPlayer players
       sendMatchState
-    (GatheringPlayers (EnoughPlayers config), "no") -> do
+    (GatheringPlayers (EnoughPlayers config), _) | text == hlNo locale -> do
       startMatch config
       sendMatchState
     _ -> pure ()
@@ -288,44 +289,21 @@ handleTextMsg text fullMsg = do
         chat { hcMatchState = MatchRunning (newMatch players) }
 
 sendGatheringPlayers :: PlayersSoFar Player -> BotM ()
-sendGatheringPlayers playersSoFar =
+sendGatheringPlayers playersSoFar = do
+  locale <- getLocale
+  let
+    meKeyboard = mkKeyboard [[hlMe locale], [hlAnAI locale]]
+    gatherMsg = hlGatheringPlayersMsg locale playersSoFar
   case playersSoFar of
     NoPlayers ->
-      sendMsg $ textMsgWithKeyboard
-        "Starting a new match! Who is the first player?"
-        meKeyboard
-    OnePlayer firstPlayer ->
+      sendMsg $ textMsgWithKeyboard gatherMsg meKeyboard
+    OnePlayer _ ->
+      sendMsg $ textMsgWithKeyboard gatherMsg meKeyboard
+    EnoughPlayers _ -> do
       let
-        text =
-          "The first player is " <> prettyPlayer firstPlayer <> ".\n" <>
-          "Who is the second player?"
-      in
-        sendMsg (textMsgWithKeyboard text meKeyboard)
-    EnoughPlayers config -> do
-      (count, nextOrdinal) <-
-        case configurationPlayers config of
-          TwoPlayers {}   -> pure ("two", "third")
-          ThreePlayers {} -> pure ("three", "fourth")
-          FourPlayers {}  -> pure ("four", "fifth")
-          FivePlayers {}  -> pure ("five", "sixth")
-          SixPlayers {} ->
-            fail "unexpected state: gathering players although there are already six!"
-      let
-        text =
-          "The first " <> count <> " players are " <>
-          prettyList (map prettyPlayer (toList (configurationPlayers config))) <> ".\n" <>
-          "Is there a " <> nextOrdinal <> " player?"
-      sendMsg (textMsgWithKeyboard text anotherPlayerKeyboard)
-  where
-    prettyList :: [T.Text] -> T.Text
-    prettyList xs =
-      case xs of
-        [] -> "<empty list>"
-        [x] -> x
-        _ -> T.intercalate ", " (init xs) <> " and " <> last xs
-    meKeyboard = mkKeyboard [["me"], ["an AI"]]
-    anotherPlayerKeyboard =
-      mkKeyboard [["yes, me"], ["yes, an AI"], ["no"]]
+        anotherPlayerKeyboard =
+          mkKeyboard [[hlYesMe locale], [hlYesAnAI locale], [hlNo locale]]
+      sendMsg (textMsgWithKeyboard gatherMsg anotherPlayerKeyboard)
 
 doAIMove :: Match -> HalmaState -> BotM ()
 doAIMove match game = do
