@@ -69,7 +69,7 @@ sendCurrentBoard halmaState =
       void $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleCommand :: CmdCall -> BotM ()
-handleCommand (CmdCall { cmdCallName = cmd }) = do
+handleCommand call@(CmdCall { cmdCallName = cmd }) = do
   locale <- getLocale
   let
     isCmd f = f locale == cmd
@@ -116,8 +116,7 @@ handleCommand (CmdCall { cmdCallName = cmd }) = do
       _ -> do
         sendI18nMsg (flip hlCantUndo (Just CantUndoNoGame))
   else
-    -- TODO: unrecognized command error message
-    pure ()
+    sendI18nMsg (flip hlUnrecognizedCmdMsg call)
 
 sendMoveSuggestions
   :: TG.User

@@ -15,9 +15,10 @@ module Game.Halma.TelegramBot.View.I18n
 
 import Game.Halma.Board (HalmaDirection)
 import Game.Halma.Configuration
+import Game.Halma.TelegramBot.Controller.SlashCmd
+import Game.Halma.TelegramBot.Model.MoveCmd
 import Game.Halma.TelegramBot.Model.Types
 import Game.Halma.TelegramBot.View.Pretty
-import Game.Halma.TelegramBot.Model.MoveCmd
 
 import Data.Char (toUpper)
 import Data.Foldable (toList)
@@ -57,6 +58,7 @@ data HalmaLocale
   , hlAIMove :: AIMove -> T.Text
   , hlNoMatchMsg :: T.Text
   , hlNoRoundMsg :: T.Text
+  , hlUnrecognizedCmdMsg :: CmdCall -> T.Text
   , hlGatheringPlayersMsg :: PlayersSoFar Player -> T.Text
   , hlMe :: T.Text
   , hlAnAI :: T.Text
@@ -110,6 +112,8 @@ enHalmaLocale =
         "Start a new Halma match with /" <> newMatchCmd
     , hlNoRoundMsg =
         "Start a new round with /" <> newRoundCmd
+    , hlUnrecognizedCmdMsg = \(CmdCall { cmdCallName = cmd }) ->
+        "Unknown command /" <> cmd <> ". See /" <> helpCmd <> " for a list of all commands."
     , hlGatheringPlayersMsg = gatheringPlayersMsg
     , hlMe = "me"
     , hlAnAI = "an AI"
@@ -227,6 +231,8 @@ deHalmaLocale =
         "Starte einen neuen Halma-Wettkampf mit /" <> newMatchCmd
     , hlNoRoundMsg =
         "Starte eine neue Runde mit /" <> newRoundCmd
+    , hlUnrecognizedCmdMsg = \(CmdCall { cmdCallName = cmd }) ->
+        "Unbekanntes Kommando /" <> cmd <> ". Eine Liste aller Kommandos liefert /" <> helpCmd <> "."
     , hlGatheringPlayersMsg = gatheringPlayersMsg
     , hlMe = "ich"
     , hlAnAI = "eine KI"
@@ -238,7 +244,7 @@ deHalmaLocale =
     newMatchCmd, newRoundCmd, undoCmd, helpCmd :: T.Text
     newMatchCmd = "neuerwettkampf"
     newRoundCmd = "neuerunde"
-    undoCmd = "zurück"
+    undoCmd = "zurueck"
     helpCmd = "hilfe"
     nominal i =
       case i of
