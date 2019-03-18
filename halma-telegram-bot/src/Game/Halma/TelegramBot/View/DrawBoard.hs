@@ -40,7 +40,7 @@ withRenderedBoardInPngFile game labels action =
     let
       dia = drawBoardForChat game labels # D.centerXY # D.pad 1.1
       bounds = dims (V2 1000 1000)
-    timeItNamed "Render board" $ liftIO $ renderRasterific path bounds dia
+    timeItNamed "Render board (CPU time)" $ liftIO $ renderRasterific path bounds dia
     action path
   where
     withTempPngFilePath handler = do

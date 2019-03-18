@@ -270,7 +270,7 @@ external = managed $ \f -> do
       figure (fromIntegral w, fromIntegral h)
     renderFigure = tryEvent $ do
       win <- eventWindow
-      timeItNamed "Rendering board" $ liftIO $ resizedFigure >>= renderToGtk win
+      timeItNamed "Rendering board (CPU time)" $ liftIO $ resizedFigure >>= renderToGtk win
     updateViewState vs = do
       _ <- tryTakeMVar viewState
       putMVar viewState vs

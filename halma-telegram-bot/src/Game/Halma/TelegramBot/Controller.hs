@@ -65,7 +65,7 @@ sendCurrentBoard halmaState =
     let
       fileUpload = TG.localFileUpload path
       photoReq = TG.uploadPhotoRequest (TG.ChatId chatId) fileUpload
-    timeItNamed "Uploading and sending board image" $
+    timeItNamed "Uploading and sending board image (CPU time)" $
       void $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleCommand :: CmdCall -> BotM (Maybe (BotM ()))
@@ -199,13 +199,16 @@ handleMoveCmd match game moveCmd fullMsg = do
           sendI18nMsg (flip hlNotYourTurn notYourTurnInfo)
           pure Nothing
         MoveImpossible reason -> do
+          logMsg $ "Move is not possible: " <> reason
           sendMsg $ textMsg $
             "This move is not possible: " <> T.pack reason
           pure Nothing
         MoveSuggestions suggestions -> do
+          logMsg "Command does not describe a unique move. Sending suggestions ..."
           sendMoveSuggestions sender fullMsg game suggestions
           pure Nothing
-        MoveFoundUnique move ->
+        MoveFoundUnique move -> do
+          logMsg "Move is valid"
           case doMove move game of
             Left err ->
               botThrow err
