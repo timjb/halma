@@ -69,51 +69,55 @@ sendCurrentBoard halmaState =
       void $ runReq $ \token -> TG.uploadPhoto token photoReq
 
 handleCommand :: CmdCall -> BotM ()
-handleCommand cmdCall =
-  case cmdCall of
-    CmdCall { cmdCallName = "help" } -> do
-      sendI18nMsg hlHelpMsg
-    CmdCall { cmdCallName = "start" } -> do
-      modify $ \chat ->
-        chat { hcMatchState = NoMatch }
-      sendI18nMsg hlWelcomeMsg
-      sendMatchState
-    CmdCall { cmdCallName = "english" } -> do
-      modify $ \chat -> chat { hcLocale = En }
-      sendMatchState
-    CmdCall { cmdCallName = "deutsch" } -> do
-      modify $ \chat -> chat { hcLocale = De }
-      sendMatchState
-    CmdCall { cmdCallName = "newmatch" } -> do
-      modify $ \chat ->
-        chat { hcMatchState = GatheringPlayers NoPlayers }
-      sendMatchState
-    CmdCall { cmdCallName = "newround" } -> do
-      matchState <- gets hcMatchState
-      case matchState of
-        MatchRunning match -> do
-          sendI18nMsg hlStartingANewRound
-          modify $ \chat ->
-            chat { hcMatchState = MatchRunning (newRound match) }
-          sendMatchState
-        _ -> do
-          sendI18nMsg hlCantStartNewRoundBecauseNoMatch
-    CmdCall { cmdCallName = "undo" } -> do
-      matchState <- gets hcMatchState
-      case matchState of
-        MatchRunning match@Match{ matchCurrentGame = Just game } ->
-          case undoLastMove game of
-            Just game' -> do
-              let
-                match' = match { matchCurrentGame = Just game' }
-              modify $ \chat ->
-                chat { hcMatchState = MatchRunning match' }
-              sendMatchState
-            Nothing -> do
-              sendI18nMsg (flip hlCantUndo Nothing)
-        _ -> do
-          sendI18nMsg (flip hlCantUndo (Just CantUndoNoGame))
-    _ -> pure ()
+handleCommand (CmdCall { cmdCallName = cmd }) = do
+  locale <- getLocale
+  let
+    isCmd f = f locale == cmd
+  if isCmd hlHelpCmd then
+    sendI18nMsg hlHelpMsg
+  else if cmd == "start" then do
+    modify $ \chat ->
+      chat { hcMatchState = NoMatch }
+    sendI18nMsg hlWelcomeMsg
+    sendMatchState
+  else if cmd == "english" then do
+    modify $ \chat -> chat { hcLocale = En }
+    sendMatchState
+  else if cmd == "deutsch" then do
+    modify $ \chat -> chat { hcLocale = De }
+    sendMatchState
+  else if isCmd hlNewMatchCmd then do
+    modify $ \chat ->
+      chat { hcMatchState = GatheringPlayers NoPlayers }
+    sendMatchState
+  else if isCmd hlNewRoundCmd then do
+    matchState <- gets hcMatchState
+    case matchState of
+      MatchRunning match -> do
+        sendI18nMsg hlStartingANewRound
+        modify $ \chat ->
+          chat { hcMatchState = MatchRunning (newRound match) }
+        sendMatchState
+      _ -> do
+        sendI18nMsg hlCantStartNewRoundBecauseNoMatch
+  else if isCmd hlUndoCmd then do
+    matchState <- gets hcMatchState
+    case matchState of
+      MatchRunning match@Match{ matchCurrentGame = Just game } ->
+        case undoLastMove game of
+          Just game' -> do
+            let
+              match' = match { matchCurrentGame = Just game' }
+            modify $ \chat ->
+              chat { hcMatchState = MatchRunning match' }
+            sendMatchState
+          Nothing -> do
+            sendI18nMsg (flip hlCantUndo Nothing)
+      _ -> do
+        sendI18nMsg (flip hlCantUndo (Just CantUndoNoGame))
+  else
+    -- TODO: unrecognized command error message
+    pure ()
 
 sendMoveSuggestions
   :: TG.User
@@ -341,7 +345,7 @@ doAIMove match game = do
       else
         IgnorantAI.aiMove rules board (partyHomeCorner currParty)
     mAIMoveCmd = moveToMoveCmd rules board aiMove
-  afterMove <- timeItNamed "Calculating AI move" $
+  afterMove <- timeItNamed "Calculating AI move (CPU time)" $
     case doMove aiMove game of
       Left err ->
         fail $ "doing an AI move failed unexpectedly: " ++ err
@@ -363,9 +367,7 @@ sendGameState match game = do
   let
     currParty = currentPlayer (hsTurnCounter game)
   case partyPlayer currParty of
-    AIPlayer -> do
-      doAIMove match game
-      sendMatchState
+    AIPlayer -> doAIMove match game
     TelegramPlayer user ->
       sendI18nMsg (\hl -> hlYourTurn hl (partyHomeCorner currParty) user)
 
@@ -424,7 +426,7 @@ handleUpdate
   :: TG.Update
   -> GlobalBotM ()
 handleUpdate update = do
-  liftIO $ putStrLn $ "Received update: " ++ show update
+  logMsg $ "Received update: " ++ show update
   case update of
     TG.Update { TG.update_id = updateId, TG.message = Just msg } -> handleMsg updateId msg
     _ -> logMsg "Update does not contain a valid ID or a message. Ignoring."

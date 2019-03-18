@@ -1,6 +1,6 @@
 module Game.Halma.TelegramBot.Controller.Helpers
   ( logMsg
-  , translate
+  , getLocale
   , sendI18nMsg
   , mkKeyboard
   , Msg
@@ -22,12 +22,12 @@ import qualified Data.Text as T
 logMsg :: String -> GeneralBotM s ()
 logMsg = liftIO . putStrLn
 
-translate :: (HalmaLocale -> a) -> BotM a
-translate getTranslation = gets (getTranslation . localeById . hcLocale)
+getLocale :: BotM HalmaLocale
+getLocale = gets (localeById . hcLocale)
 
 sendI18nMsg :: (HalmaLocale -> T.Text) -> BotM ()
 sendI18nMsg getText = do
-  text <- translate getText
+  text <- getText <$> getLocale
   sendMsg $ textMsg text -- todo: url link suppression
 
 mkButton :: T.Text -> TG.KeyboardButton

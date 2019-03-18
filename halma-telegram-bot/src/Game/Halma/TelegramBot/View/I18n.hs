@@ -40,7 +40,11 @@ data AIMove
 
 data HalmaLocale
   = HalmaLocale
-  { hlWelcomeMsg :: T.Text
+  { hlNewMatchCmd :: T.Text
+  , hlNewRoundCmd :: T.Text
+  , hlUndoCmd :: T.Text
+  , hlHelpCmd :: T.Text
+  , hlWelcomeMsg :: T.Text
   , hlHelpMsg :: T.Text
   , hlCongratulation :: ExtendedPartyResult -> T.Text
   , hlCantStartNewRoundBecauseNoMatch :: T.Text
@@ -57,16 +61,20 @@ data HalmaLocale
 enHalmaLocale :: HalmaLocale
 enHalmaLocale =
   HalmaLocale
-    { hlWelcomeMsg =
+    { hlNewMatchCmd = newMatchCmd
+    , hlNewRoundCmd = newRoundCmd
+    , hlUndoCmd = undoCmd
+    , hlHelpCmd = helpCmd
+    , hlWelcomeMsg =
         "Greetings from HalmaBot! I am an [open-source](https://github.com/timjb/halma) Telegram bot " <>
         "written in Haskell by Tim Baumann <tim@timbaumann.info>."
     , hlHelpMsg =
         "You can control me by sending these commands:\n" <>
-        "/newmatch — starts a new match between two or three players\n" <>
-        "/newround — start a new game round\n" <>
-        "/undo — reverse your last move\n" <>
+        "/" <> newMatchCmd <> " — starts a new match between two or three players\n" <>
+        "/" <> newRoundCmd <> " — start a new game round\n" <>
+        "/" <> undoCmd <> " — reverse your last move\n" <>
         "/deutsch — " <> localeFlag De <> " auf Deutsch umschalten / switch to German\n" <>
-        "/help — display this message\n\n" <>
+        "/" <> helpCmd <> " — display this message\n\n" <>
         "Here's how move commands are structured:\n" <>
         "First there comes a letter in the range A-O (the piece you want to " <>
         " move), then the number of the row you want to move the piece to. " <>
@@ -91,11 +99,16 @@ enHalmaLocale =
         "The AI " <> teamEmoji (aiHomeCorner aiMove) <>
         " makes the following move: " <> showMoveCmd (aiMoveCmd aiMove)
     , hlNoMatchMsg =
-        "Start a new Halma match with /newmatch"
+        "Start a new Halma match with /" <> newMatchCmd
     , hlNoRoundMsg =
-        "Start a new round with /newround"
+        "Start a new round with /" <> newRoundCmd
     }
   where
+    newMatchCmd, newRoundCmd, undoCmd, helpCmd :: T.Text
+    newMatchCmd = "newmatch"
+    newRoundCmd = "newround"
+    undoCmd = "undo"
+    helpCmd = "help"
     nominal i =
       case i of
         1 -> "first"
@@ -130,16 +143,20 @@ enHalmaLocale =
 deHalmaLocale :: HalmaLocale
 deHalmaLocale =
   HalmaLocale
-    { hlWelcomeMsg =
+    { hlNewMatchCmd = newMatchCmd
+    , hlNewRoundCmd = newRoundCmd
+    , hlUndoCmd = undoCmd
+    , hlHelpCmd = helpCmd
+    , hlWelcomeMsg =
         "Hallo, ich bin @HalmaBot, ein [quelloffener](https://github.com/timjb/halma) Telegram-Bot " <>
         " programmiert von Tim Baumann <tim@timbaumann.info> in Haskell."
     , hlHelpMsg =
         "Du kannst mich durch folgende Kommandos steuern:\n" <>
-        "/newmatch — startet ein neues Halma-Match\n" <>
-        "/newround — startet eine neue Spielrunde im aktuellen Match\n" <>
-        "/undo — macht den letzten Zug rückgängig\n" <>
+        "/" <> newMatchCmd <> " — startet einen neuen Halma-Wettkampf\n" <>
+        "/" <> newRoundCmd <> " — startet eine neue Spielrunde im aktuellen Wettkampf\n" <>
+        "/" <> undoCmd <> " — macht den letzten Zug rückgängig\n" <>
         "/english — " <> localeFlag En <> " switch to English / auf Englisch umschalten\n" <>
-        "/help — zeigt diese Hilfe-Nachricht an\n\n" <>
+        "/" <> helpCmd <> " — zeigt diese Hilfe-Nachricht an\n\n" <>
         "Zuganweisungen sind folgendermaßen aufgebaut:\n" <>
         "Zuerst kommt ein Buchstabe von A bis O (der Spielstein, den du " <>
         " bewegen möchtest), dann kommt die Nummer der Reihe in den du den " <>
@@ -165,11 +182,16 @@ deHalmaLocale =
         "Die KI " <> teamEmoji (aiHomeCorner aiMove) <>
         " macht den folgenden Zug: " <> showMoveCmd (aiMoveCmd aiMove)
     , hlNoMatchMsg =
-        "Starte ein neues Halma-Match mit /newmatch"
+        "Starte einen neuen Halma-Wettkampf mit /" <> newMatchCmd
     , hlNoRoundMsg =
-        "Starte eine neue Runde mit /newround"
+        "Starte eine neue Runde mit /" <> newRoundCmd
     }
   where
+    newMatchCmd, newRoundCmd, undoCmd, helpCmd :: T.Text
+    newMatchCmd = "neuerwettkampf"
+    newRoundCmd = "neuerunde"
+    undoCmd = "zurück"
+    helpCmd = "hilfe"
     nominal i =
       case i of
         1 -> "erster"
