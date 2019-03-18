@@ -19,7 +19,10 @@ Resources:
       Runtime: provided
       CodeUri: build
       Description: Halma Telegram Bot Running on AWS Lambda
-      MemorySize: 192 # MB
+      MemorySize: 640 # MB
+      # The program only uses ~100 MB but allocating more memory also means that more CPU power
+      # is allocated, which is critical for answering messages in a timely manner (and not
+      # triggering the timeout).
       Timeout: 30 # seconds
       Policies:
       - AWSLambdaExecute # Managed Policy
