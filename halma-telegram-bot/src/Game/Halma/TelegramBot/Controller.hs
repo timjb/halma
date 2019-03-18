@@ -120,14 +120,15 @@ handleCommand call@(CmdCall { cmdCallName = cmd }) = do
 
 sendMoveSuggestions
   :: TG.User
+  -> MoveCmd -- ^ the ambiguous move cmd
   -> TG.Message
   -> HalmaState
   -> NonEmpty (MoveCmd, Move)
   -> BotM ()
-sendMoveSuggestions sender msg game suggestions = do
+sendMoveSuggestions sender ambiguousMoveCmd msg game suggestions = do
   locale <- getLocale
   let
-    text = hlAmbiguousMoveCmdMsg locale sender
+    text = hlAmbiguousMoveCmdMsg locale sender ambiguousMoveCmd
     suggestionToButton (moveCmd, _move) =
       showMoveCmd moveCmd
     keyboard =
@@ -185,13 +186,12 @@ handleMoveCmd match game moveCmd fullMsg = do
                 , thePlayerWhoseTurnItIs = player
                 }
           sendI18nMsg (flip hlNotYourTurn notYourTurnInfo)
-        MoveImpossible reason -> do
-          logMsg $ "Move is not possible: " <> reason
-          sendMsg $ textMsg $
-            "This move is not possible: " <> T.pack reason
+        MoveImpossible -> do
+          logMsg "Move is not possible"
+          sendI18nMsg (\hl -> hlImpossibleMoveCmdMsg hl sender moveCmd)
         MoveSuggestions suggestions -> do
           logMsg "Command does not describe a unique move. Sending suggestions ..."
-          sendMoveSuggestions sender fullMsg game suggestions
+          sendMoveSuggestions sender moveCmd fullMsg game suggestions
         MoveFoundUnique move -> do
           logMsg "Move is valid"
           case doMove move game of

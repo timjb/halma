@@ -58,7 +58,8 @@ data HalmaLocale
   , hlAIMove :: AIMove -> T.Text
   , hlNoMatchMsg :: T.Text
   , hlNoRoundMsg :: T.Text
-  , hlAmbiguousMoveCmdMsg :: TG.User -> T.Text
+  , hlAmbiguousMoveCmdMsg :: TG.User -> MoveCmd -> T.Text
+  , hlImpossibleMoveCmdMsg :: TG.User -> MoveCmd -> T.Text
   , hlUnrecognizedCmdMsg :: CmdCall -> T.Text
   , hlGatheringPlayersMsg :: PlayersSoFar Player -> T.Text
   , hlMe :: T.Text
@@ -113,10 +114,13 @@ enHalmaLocale =
         "Start a new Halma match with /" <> newMatchCmd
     , hlNoRoundMsg =
         "Start a new round with /" <> newRoundCmd
-    , hlAmbiguousMoveCmdMsg = \sender ->
+    , hlAmbiguousMoveCmdMsg = \sender _moveCmd ->
         prettyUser sender <> ", the move command you sent is ambiguous. " <>
         "Please send another move command or choose one in the " <>
         "following list."
+    , hlImpossibleMoveCmdMsg = \_sender moveCmd ->
+        "The selected piece can't be moved to row " <>
+        T.pack (show (unRowNumber (moveTargetRow moveCmd))) <> "!"
     , hlUnrecognizedCmdMsg = \(CmdCall { cmdCallName = cmd }) ->
         "Unknown command /" <> cmd <> ". See /" <> helpCmd <> " for a list of all commands."
     , hlGatheringPlayersMsg = gatheringPlayersMsg
@@ -236,10 +240,13 @@ deHalmaLocale =
         "Starte einen neuen Halma-Wettkampf mit /" <> newMatchCmd
     , hlNoRoundMsg =
         "Starte eine neue Runde mit /" <> newRoundCmd
-    , hlAmbiguousMoveCmdMsg = \sender ->
+    , hlAmbiguousMoveCmdMsg = \sender _moveCmd ->
         prettyUser sender <> ", deine Zuganweisung ist nicht eindeutig. " <>
         "Sende bitte eine andere Zuganweisung oder präzisiere deine Anweisung mit Hilfe " <>
         "der folgenden Liste."
+    , hlImpossibleMoveCmdMsg = \_sender moveCmd ->
+        "Der Spielstein '" <> showPieceNumber (movePieceNumber moveCmd) <> "' kann nicht in " <>
+        "die Reihe " <> T.pack (show (unRowNumber (moveTargetRow moveCmd))) <> " bewegt werden!"
     , hlUnrecognizedCmdMsg = \(CmdCall { cmdCallName = cmd }) ->
         "Unbekanntes Kommando /" <> cmd <> ". Eine Liste aller Kommandos liefert /" <> helpCmd <> "."
     , hlGatheringPlayersMsg = gatheringPlayersMsg

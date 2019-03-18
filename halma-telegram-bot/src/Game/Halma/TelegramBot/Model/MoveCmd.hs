@@ -201,7 +201,7 @@ moveToMoveCmd rules board move = do
 
 
 data CheckMoveCmdResult
-  = MoveImpossible String
+  = MoveImpossible
   | MoveFoundUnique Move
   | MoveSuggestions (NonEmpty (MoveCmd, Move))
   deriving (Show, Eq)
@@ -215,7 +215,7 @@ checkMoveCmd
 checkMoveCmd rules board player moveCmd =
   case lookup pieceToMove allPieces of
     Nothing ->
-      MoveImpossible $
+      error $
         "Unexpected error: The piece " ++ show pieceToMove ++
         " is not on the Halma board!"
     Just startPos ->
@@ -224,10 +224,7 @@ checkMoveCmd rules board player moveCmd =
         movesToTargetRow = movesToRow rules board startPos targetRow
       in
         case first mkMoveCmd <$> movesToTargetRow of
-          [] ->
-            MoveImpossible $
-              "The selected piece can't be moved to row " ++
-              show (unRowNumber (moveTargetRow moveCmd)) ++ "!"
+          [] -> MoveImpossible
           [(moveCmd', move)] ->
             case moveTargetModifier moveCmd of
               Nothing ->
