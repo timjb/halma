@@ -1,11 +1,15 @@
 # Halma [![Build Status][travis-image]][travis-url] [![Hackage version][hackage-image]][hackage-url] [![Hackage dependencies][hackage-deps-image]][hackage-deps-url] [![Code Climate][codeclimate-image]][codeclimate-url]
 
+## The library
+
+See the docs on [Hackage][hackage-url].
+
+## The GTK application
+
 ![Halma Game][game-image]
 ![Halma Menu][menu-image]
 
-## Installation
-
-Make sure you have GTK and Cairo installed, then run
+**Installation**: Make sure you have GTK and Cairo installed, then run
 
 ```bash
 $ cabal install halma-gui
@@ -13,10 +17,6 @@ $ halma-gui
 ```
 
 If cabal fails to solve the version constraints, try using [Stackage](http://www.stackage.org/).
-
-## Documentation
-
-See the docs on [Hackage][hackage-url].
 
 <img align="right" src="https://cdn.rawgit.com/timjb/halma/master/images/telegram-chat.jpg" alt="Chatbot screenshot" />
 
