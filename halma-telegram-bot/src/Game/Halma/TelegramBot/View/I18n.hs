@@ -58,6 +58,7 @@ data HalmaLocale
   , hlAIMove :: AIMove -> T.Text
   , hlNoMatchMsg :: T.Text
   , hlNoRoundMsg :: T.Text
+  , hlAmbiguousMoveCmdMsg :: TG.User -> T.Text
   , hlUnrecognizedCmdMsg :: CmdCall -> T.Text
   , hlGatheringPlayersMsg :: PlayersSoFar Player -> T.Text
   , hlMe :: T.Text
@@ -112,6 +113,10 @@ enHalmaLocale =
         "Start a new Halma match with /" <> newMatchCmd
     , hlNoRoundMsg =
         "Start a new round with /" <> newRoundCmd
+    , hlAmbiguousMoveCmdMsg = \sender ->
+        prettyUser sender <> ", the move command you sent is ambiguous. " <>
+        "Please send another move command or choose one in the " <>
+        "following list."
     , hlUnrecognizedCmdMsg = \(CmdCall { cmdCallName = cmd }) ->
         "Unknown command /" <> cmd <> ". See /" <> helpCmd <> " for a list of all commands."
     , hlGatheringPlayersMsg = gatheringPlayersMsg
@@ -231,6 +236,10 @@ deHalmaLocale =
         "Starte einen neuen Halma-Wettkampf mit /" <> newMatchCmd
     , hlNoRoundMsg =
         "Starte eine neue Runde mit /" <> newRoundCmd
+    , hlAmbiguousMoveCmdMsg = \sender ->
+        prettyUser sender <> ", deine Zuganweisung ist nicht eindeutig. " <>
+        "Sende bitte eine andere Zuganweisung oder präzisiere deine Anweisung mit Hilfe " <>
+        "der folgenden Liste."
     , hlUnrecognizedCmdMsg = \(CmdCall { cmdCallName = cmd }) ->
         "Unbekanntes Kommando /" <> cmd <> ". Eine Liste aller Kommandos liefert /" <> helpCmd <> "."
     , hlGatheringPlayersMsg = gatheringPlayersMsg

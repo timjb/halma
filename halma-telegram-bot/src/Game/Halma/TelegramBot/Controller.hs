@@ -125,11 +125,9 @@ sendMoveSuggestions
   -> NonEmpty (MoveCmd, Move)
   -> BotM ()
 sendMoveSuggestions sender msg game suggestions = do
+  locale <- getLocale
   let
-    text =
-      prettyUser sender <> ", the move command you sent is ambiguous. " <>
-      "Please send another move command or choose one in the " <>
-      "following list."
+    text = hlAmbiguousMoveCmdMsg locale sender
     suggestionToButton (moveCmd, _move) =
       showMoveCmd moveCmd
     keyboard =
