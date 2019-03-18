@@ -65,14 +65,14 @@ enHalmaLocale =
         "/newmatch — starts a new match between two or three players\n" <>
         "/newround — start a new game round\n" <>
         "/undo — reverse your last move\n" <>
-        "/setlang [" <> localesText <> "] — switch to another language\n" <>
+        "/deutsch — " <> localeFlag De <> " auf Deutsch umschalten / switch to German\n" <>
         "/help — display this message\n\n" <>
         "Here's how move commands are structured:\n" <>
         "First there comes a letter in the range A-O (the piece you want to " <>
         " move), then the number of the row you want to move the piece to. " <>
         "If there are multiple possible target positions on the row, I will " <>
         "ask you which one you mean.\n" <>
-        "For example: the command 'a11' makes me move your piece labeled 'a' " <>
+        "For example: the command 'A11' makes me move your piece labeled 'A' " <>
         "to row number 11."
     , hlCongratulation = congrat
     , hlCantStartNewRoundBecauseNoMatch =
@@ -138,7 +138,7 @@ deHalmaLocale =
         "/newmatch — startet ein neues Halma-Match\n" <>
         "/newround — startet eine neue Spielrunde im aktuellen Match\n" <>
         "/undo — macht den letzten Zug rückgängig\n" <>
-        "/setlang [" <> localesText <> "] — wechsle die Sprache / switch to another language\n" <>
+        "/english — " <> localeFlag En <> " switch to English / auf Englisch umschalten\n" <>
         "/help — zeigt diese Hilfe-Nachricht an\n\n" <>
         "Zuganweisungen sind folgendermaßen aufgebaut:\n" <>
         "Zuerst kommt ein Buchstabe von A bis O (der Spielstein, den du " <>
@@ -146,8 +146,8 @@ deHalmaLocale =
         " Stein bewegen möchtest. " <>
         "Wenn es mehrere mögliche Zielpositionen innerhalb dieser Reihe gibt, " <>
         "dann frage ich dich, welche du genau meinst.\n" <>
-        "Zum Beispiel: Das Kommando 'a11' bewegt deinen Stein mit der " <>
-        "Aufschrift 'a' in die Zeile Nummer 11."
+        "Zum Beispiel: Das Kommando 'A11' bewegt deinen Stein mit der " <>
+        "Aufschrift 'A' in die Zeile Nummer 11."
     , hlCongratulation = congrat
     , hlCantStartNewRoundBecauseNoMatch =
         "Um eine neue Runde zu starten, muss erst ein neues Spiel mit /newmatch gestartet werden."
@@ -214,9 +214,6 @@ capitalize t =
 
 allLocaleIds :: [LocaleId]
 allLocaleIds = [En, De]
-
-localesText :: T.Text
-localesText = T.intercalate " / " (map prettyLocaleId allLocaleIds)
 
 localeById :: LocaleId -> HalmaLocale
 localeById localeId =

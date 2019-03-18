@@ -78,17 +78,12 @@ handleCommand cmdCall =
         chat { hcMatchState = NoMatch }
       sendI18nMsg hlWelcomeMsg
       sendMatchState
-    CmdCall { cmdCallName = "setlang", cmdCallArgs = Nothing } -> do
-      sendMsg $ textMsg "/setlang expects an argument!"
-    CmdCall { cmdCallName = "setlang", cmdCallArgs = Just arg } ->
-      case parsePrettyLocaleId arg of
-        Just localeId -> do
-          modify $ \chat -> chat { hcLocale = localeId }
-          sendMatchState
-        Nothing -> do
-          sendMsg $ textMsg $
-            "Could not parse language. Must be one of the following strings: " <>
-            T.intercalate ", " (map prettyLocaleId allLocaleIds)
+    CmdCall { cmdCallName = "english" } -> do
+      modify $ \chat -> chat { hcLocale = En }
+      sendMatchState
+    CmdCall { cmdCallName = "deutsch" } -> do
+      modify $ \chat -> chat { hcLocale = De }
+      sendMatchState
     CmdCall { cmdCallName = "newmatch" } -> do
       modify $ \chat ->
         chat { hcMatchState = GatheringPlayers NoPlayers }

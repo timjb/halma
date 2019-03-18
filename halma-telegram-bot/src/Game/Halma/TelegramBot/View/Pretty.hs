@@ -3,8 +3,7 @@
 module Game.Halma.TelegramBot.View.Pretty
   ( prettyUser
   , prettyPlayer
-  , prettyLocaleId
-  , parsePrettyLocaleId
+  , localeFlag
   , teamEmoji
   ) where
 
@@ -29,17 +28,11 @@ prettyPlayer player =
     AIPlayer -> "AI"
     TelegramPlayer user -> prettyUser user
 
-prettyLocaleId :: LocaleId -> T.Text
-prettyLocaleId localeId =
+localeFlag :: LocaleId -> T.Text
+localeFlag localeId =
   case localeId of
-    De -> "\127465\127466 de" -- german flag :de:
-    En -> "\127468\127463 en" -- union jack :gb:
-
-parsePrettyLocaleId :: T.Text -> Maybe LocaleId
-parsePrettyLocaleId s =
-  lookup (T.strip s) table
-  where
-    table = map (\locId -> (prettyLocaleId locId, locId)) [minBound..maxBound]
+    De -> "\127465\127466" -- german flag :de:
+    En -> "\127468\127463" -- union jack :gb:
 
 teamEmoji :: Team -> T.Text
 teamEmoji dir =
