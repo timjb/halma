@@ -13,3 +13,6 @@ halma-chats
 # deployment artifacts
 build
 deploy.yaml
+
+# Nix
+result

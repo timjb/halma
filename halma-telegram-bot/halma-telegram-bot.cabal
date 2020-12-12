@@ -38,7 +38,7 @@ library
   build-depends:
     base >= 4.6 && < 5,
     halma >= 0.3.0.0 && < 0.4,
-    telegram-api >= 0.7.2 && < 0.8,
+    telegram-api >= 0.7.1 && < 0.8,
     text,
     transformers,
     servant-client,

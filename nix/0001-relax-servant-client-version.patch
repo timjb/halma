@@ -1,0 +1,13 @@
+diff --git a/telegram-api.cabal b/telegram-api.cabal
+index 3b4228b..7978a3f 100644
+--- a/telegram-api.cabal
++++ b/telegram-api.cabal
+@@ -51,7 +51,7 @@ library
+                      , http-api-data
+                      , http-client
+                      , servant
+-                     , servant-client == 0.16
++                     , servant-client == 0.16.0.*
+                      , servant-client-core
+                      , mtl
+                      , text
