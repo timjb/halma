@@ -1,4 +1,4 @@
-{ compiler ? "ghc865" }:
+{ compiler ? "ghc865", sources ? import ./nix/sources.nix }:
 
 let
   config = {
@@ -20,7 +20,10 @@ let
     };
   };
 
-  pkgs = import <nixpkgs> { inherit config; };
+  pkgs =
+    with
+      { overlay = _: pkgs: { niv = import sources.niv {}; }; };
+    import sources.nixpkgs { overlays = [ overlay ]; inherit config; };
 
 in
   { halma-telegram-bot = pkgs.haskell.packages.${compiler}.halma-telegram-bot;
