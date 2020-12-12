@@ -45,7 +45,7 @@ library
     http-client,
     http-client-tls,
     data-default,
-    megaparsec,
+    megaparsec >= 7,
     mtl,
     exceptions,
     temporary,

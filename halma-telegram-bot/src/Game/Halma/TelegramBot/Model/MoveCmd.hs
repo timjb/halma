@@ -153,7 +153,7 @@ moveCmdParser =
 
 parseMoveCmd :: T.Text -> Either String MoveCmd
 parseMoveCmd text =
-  first P.parseErrorPretty $
+  first P.errorBundlePretty $
     P.runParser moveCmdLineParser "halma move cmd" text
   where
     moveCmdLineParser = (P.space *> moveCmdParser) <* P.space <* P.eof
