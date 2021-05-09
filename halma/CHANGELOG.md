@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.3.0.2 (2021-05-09)
+
+- Relax upper bounds: Allow `aeson-1.5.*`
+
 ## 0.3.0.1 (2019-01-03)
 
 - Relax upper bounds: Allow `containers-0.6.*`, `aeson-1.4.*`
