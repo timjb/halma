@@ -6,7 +6,7 @@ nix:
   - glib
   - gtk2
   - pango
-  - pkgconfig
+  - pkg-config
   - zlib
 packages:
 - halma
@@ -25,4 +25,60 @@ extra-deps:
   - core
   - amazonka-s3
 - hal-0.1.0
-resolver: lts-12.26
+# Version pins for compatibility with LTS-23.26
+- aeson-2.2.3.0@sha256:7d48c2395ef168d2c2070fdb02c7998384be27d31a03bb35d1740af4a19a857b,6368
+- diagrams-gtk-1.4@sha256:438e984130ef9ea9324f34217173dfd1b39f84e2c0abd5c33b4a413856afb018,1286
+- envy-1.5.1.0@sha256:a00910ebf461ec36ff6b7b01711bffe09cee062b7515c4580c466002590283a2,1683
+- http-client-0.7.19@sha256:1f0950bab7fe751370ce4ec736c7836dd8a68a757a083ee7f690a9c976d7205e,5613
+- mtl-2.2.2@sha256:1050fb71acd9f5d67da7d992583f5bd0eb14407b9dc7acc122af1b738b706ca3,2261
+- servant-0.14.1@sha256:e465f22a47b8d9f9452f9ac8673920e187e3a632d6c38cbf34b1037e4ee534d9,5711
+- servant-client-0.14@sha256:0f59f49bd11e0eee2a8ef6a3366c51a9c95b9ea5d1a34811962b14e77dc752e6,4235
+- servant-client-core-0.14.1@sha256:6bf3989ce32b8572e56cf079666fa877a8b82c66d21455df287e6fee18cbfb0a,3540
+- text-2.0@sha256:f2207a6a51a8320c44dbd8b462723a8e39e2bfceda67e15f52fc12922259cbb0,8093
+# GHC boot packages that need to be added due to pruning
+- Cabal-3.14.2.0
+- Cabal-syntax-3.14.2.0
+- binary-0.8.9.3
+- containers-0.7
+- directory-1.3.9.0
+- exceptions-0.10.10
+- filepath-1.5.4.0
+- parsec-3.1.18.0
+- process-1.6.26.1
+- unix-2.8.7.0
+resolver: lts-23.26
+allow-newer: true
+allow-newer-deps:
+  - amazonka
+  - amazonka-core
+  - hal
+  - halma
+  - telegram-api
+  - aeson
+  - containers
+  - envy
+  - http-client
+  - mtl
+  - servant
+  - servant-client
+  - servant-client-core
+  - base
+  - bytestring
+  - transformers
+  - text
+  - deepseq
+  - time
+  - binary
+  - directory
+  - filepath
+  - process
+  - unix
+  - exceptions
+  - Cabal
+  - hashable
+  - http-api-data
+  - indexed-traversable
+  - scientific
+  - file-io
+  - grid
+  - integer-conversion
